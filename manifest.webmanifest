@@ -1,0 +1,10 @@
+{
+  "name": "NeeDoh Squish",
+  "short_name": "Squish",
+  "description": "Relaxing ASMR squishy toys: NeeDoh, Pop It, squishy butter and a dumpling.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3e8f7",
+  "theme_color": "#f3e8f7",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

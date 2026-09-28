@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>NeeDoh Squish</title>
+<meta name="description" content="A relaxing ASMR squishy toy game: squish a NeeDoh, pop a Pop It, press squishy butter and squeeze a dumpling. Best with headphones.">
+<meta name="theme-color" content="#f3e8f7">
+<meta property="og:title" content="NeeDoh Squish">
+<meta property="og:description" content="Relaxing ASMR squishy toys in your browser. Headphones recommended.">
+<link rel="icon" href="icon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+  :root {
+    --bg1: #fde8f1;
+    --bg2: #e6e9ff;
+    --ink: #5b4a6b;
+    --chip: rgba(255,255,255,.65);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: radial-gradient(circle at 30% 20%, var(--bg1), var(--bg2));
+    font-family: "Ubuntu", "Nunito", system-ui, sans-serif;
+    color: var(--ink);
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: grab; }
+  canvas.grabbing { cursor: grabbing; }
+  canvas.poke { cursor: pointer; }
+  .hud {
+    position: fixed; top: 16px; left: 16px; right: 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none;
+  }
+  .title { font-weight: 700; font-size: 22px; letter-spacing: .5px; opacity: .85; }
+  .sub { font-size: 13px; opacity: .6; margin-top: 2px; }
+  .count { font-size: 14px; background: var(--chip); padding: 6px 12px; border-radius: 999px; backdrop-filter: blur(6px); }
+  .toys {
+    position: fixed; top: 74px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; background: var(--chip); padding: 6px; border-radius: 999px;
+    backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(90,60,120,.12);
+  }
+  .toys button {
+    border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px;
+    padding: 7px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  }
+  .toys button:hover { background: rgba(255,255,255,.7); }
+  .toys button.on { background: var(--ink); color: white; }
+  .bar {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; align-items: center;
+    background: var(--chip); padding: 10px 14px; border-radius: 999px;
+    backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(90,60,120,.12);
+    max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center;
+  }
+  .opts { display: contents; }
+  .opts[hidden] { display: none; }
+  .swatch {
+    width: 30px; height: 30px; border-radius: 50%; border: 3px solid white;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.15); transition: transform .15s;
+  }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch.on { outline: 3px solid var(--ink); outline-offset: 1px; }
+  .sep { width: 1px; height: 24px; background: rgba(0,0,0,.12); }
+  button.tog {
+    border: 0; background: white; color: var(--ink); font: inherit; font-size: 13px;
+    padding: 7px 12px; border-radius: 999px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.08);
+  }
+  button.tog.on { background: var(--ink); color: white; }
+  .hint {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, 190px);
+    font-size: 15px; opacity: .55; pointer-events: none; transition: opacity 1s;
+  }
+  @media (max-width: 560px) {
+    .toys { top: 70px; }
+    .toys button { padding: 6px 9px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div>
+    <div class="title" id="title">NeeDoh Squish</div>
+    <div class="sub" id="sub"></div>
+  </div>
+  <div class="count" id="count">0 squishes</div>
+</div>
+<div class="toys" id="toys"></div>
+<div class="hint" id="hint">🎧 headphones recommended</div>
+<div class="bar" id="bar">
+  <div class="opts" id="opt-needoh">
+    <button class="tog on" id="texBtn" title="Surface texture">Glitter</button>
+    <div class="sep"></div>
+    <span class="opts" id="swatches"></span>
+    <div class="sep"></div>
+  </div>
+  <div class="opts" id="opt-popit" hidden>
+    <button class="tog" id="flipBtn">🔄 Flip</button>
+    <button class="tog" id="shapeBtn">Square</button>
+    <div class="sep"></div>
+  </div>
+  <button class="tog on" id="sndBtn">🔊 Sound</button>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- setup ----------
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+const baseRadius = () => Math.min(W, H) * 0.2;
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function mix(h, h2, t, a = 1) {
+  const x = hexRgb(h), y = hexRgb(h2);
+  return `rgba(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(',')},${a})`;
+}
+
+// ---------- audio ----------
+// Everything is synthesized live. Sounds are panned toward where you touch (wear headphones)
+// and sent through a small generated room so they feel close rather than dry.
+let AC = null, master, wetSend, NOISE, soundOn = true;
+let bedGain, bedLP, bedBP, bedPan, grainAcc = 0;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const touchPan = () => (W ? clamp((pointer.x / W) * 2 - 1, -1, 1) * 0.75 : 0);
+
+function initAudio(offline) {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  AC = offline || new (window.AudioContext || window.webkitAudioContext)();
+  // soft-clip limiter: transparent at normal levels, rounds off only the loudest peaks
+  const clip = AC.createWaveShaper(), curve = new Float32Array(2048);
+  for (let i = 0; i < curve.length; i++) {
+    const x = (i / (curve.length - 1)) * 2 - 1, ax = Math.abs(x);
+    curve[i] = ax < 0.6 ? x : Math.sign(x) * (0.6 + 0.4 * Math.tanh((ax - 0.6) / 0.4));
+  }
+  clip.curve = curve; clip.oversample = '2x';
+  master = AC.createGain(); master.gain.value = 1;
+  master.connect(clip); clip.connect(AC.destination);
+
+  // small, soft, dark room
+  const len = Math.floor(AC.sampleRate * 1.1), ir = AC.createBuffer(2, len, AC.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    let lp = 0;
+    for (let i = 0; i < len; i++) {
+      lp += 0.3 * ((Math.random() * 2 - 1) - lp);
+      d[i] = i < AC.sampleRate * 0.006 ? 0 : lp * Math.pow(1 - i / len, 3.5);
+    }
+  }
+  const verb = AC.createConvolver(); verb.buffer = ir;
+  wetSend = AC.createGain(); wetSend.gain.value = 0.35;
+  wetSend.connect(verb); verb.connect(master);
+
+  // one shared noise buffer, played from random offsets
+  NOISE = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
+  const nd = NOISE.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+  // continuous bed for the squishy toys: soft muffled rustle + a hollow suction band
+  const src = AC.createBufferSource(); src.buffer = NOISE; src.loop = true;
+  bedLP = AC.createBiquadFilter(); bedLP.type = 'lowpass'; bedLP.frequency.value = 700; bedLP.Q.value = 0.8;
+  bedBP = AC.createBiquadFilter(); bedBP.type = 'bandpass'; bedBP.frequency.value = 300; bedBP.Q.value = 5;
+  const bpGain = AC.createGain(); bpGain.gain.value = 2.2;
+  bedGain = AC.createGain(); bedGain.gain.value = 0;
+  src.connect(bedLP); bedLP.connect(bedGain);
+  src.connect(bedBP); bedBP.connect(bpGain); bpGain.connect(bedGain);
+  bedPan = AC.createStereoPanner();
+  bedGain.connect(bedPan); bedPan.connect(master);
+  const bedWet = AC.createGain(); bedWet.gain.value = 0.5; bedPan.connect(bedWet); bedWet.connect(wetSend);
+  src.start();
+}
+
+function out(pan, wet = 1) {
+  const p = AC.createStereoPanner();
+  p.pan.value = clamp(pan ?? touchPan(), -1, 1);
+  p.connect(master);
+  if (wet) { const s = AC.createGain(); s.gain.value = wet; p.connect(s); s.connect(wetSend); }
+  return p;
+}
+function env(t, dur, vol, attack) {
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  return g;
+}
+const live = () => AC && soundOn;
+function noise(dur, { type = 'bandpass', f0, f1 = f0, q = 1, vol, attack = 0.005, delay = 0, pan, wet = 1 }) {
+  if (!live()) return;
+  const t = AC.currentTime + delay;
+  const s = AC.createBufferSource(); s.buffer = NOISE;
+  const f = AC.createBiquadFilter(); f.type = type; f.Q.value = q;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = env(t, dur, vol, attack);
+  s.connect(f); f.connect(g); g.connect(out(pan, wet));
+  s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+}
+function tone(dur, f0, f1, vol, { type = 'sine', attack = 0.004, delay = 0, pan, wet = 1 } = {}) {
+  if (!live()) return;
+  const t = AC.currentTime + delay;
+  const o = AC.createOscillator(); o.type = type;
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = env(t, dur, vol, attack);
+  o.connect(g); g.connect(out(pan, wet)); o.start(t); o.stop(t + dur + 0.05);
+}
+// A collapsing air bubble rings with a pitch that rises: the core of every wet "squish"
+function bubble(f, vol, { delay = 0, pan, dur = rnd(0.015, 0.045), rise = rnd(1.4, 2.6) } = {}) {
+  tone(dur, f, f * rise, vol, { attack: 0.0015, delay, pan, wet: 0.6 });
+}
+function bubbles(n, lo, hi, vol, spread, pan) {
+  for (let i = 0; i < n; i++) bubble(rnd(lo, hi), vol * rnd(0.4, 1), { delay: rnd(0, spread), pan: (pan ?? touchPan()) + rnd(-0.15, 0.15) });
+}
+
+// Drives the continuous squish from how fast the toy is moving
+function squishAudio(p, energy, stretch, squeeze, dt, held) {
+  if (!AC) return;
+  const t = AC.currentTime;
+  if (!soundOn) { bedGain.gain.setTargetAtTime(0, t, 0.03); return; }
+  const motion = clamp(energy / 160, 0, 1.5);
+  const act = held ? motion + squeeze * 0.12 : motion * 0.35;
+  // jitter so the bed breathes instead of hissing steadily
+  bedGain.gain.setTargetAtTime(Math.min(0.7, act ** 1.3 * p.bed) * rnd(0.5, 1.2), t, 0.02);
+  const s = clamp(stretch * 2 + squeeze * 0.3, 0, 1);
+  bedLP.frequency.setTargetAtTime(p.lp[0] + (p.lp[1] - p.lp[0]) * s, t, 0.05);
+  bedBP.frequency.setTargetAtTime((p.bp[0] + (p.bp[1] - p.bp[0]) * s) * rnd(0.85, 1.15), t, 0.03);
+  bedPan.pan.setTargetAtTime(touchPan(), t, 0.05);
+  grainAcc += dt * p.grains * Math.min(1.5, act);
+  while (grainAcc > 1) {
+    grainAcc -= 1;
+    bubble(rnd(p.bf[0], p.bf[1]) * (1 + stretch * 0.6), p.bvol * rnd(0.3, 1) * Math.min(1, act + 0.3),
+      { delay: rnd(0, 0.02), pan: touchPan() + rnd(-0.2, 0.2) });
+  }
+}
+function silenceBed() { if (AC) bedGain.gain.setTargetAtTime(0, AC.currentTime, 0.05); }
+
+const sfx = {
+  // NeeDoh: gel suction squelch
+  grab() {
+    noise(0.24, { type: 'lowpass', f0: 1800, f1: 260, q: 2, vol: 0.7, attack: 0.012 });
+    tone(0.14, 120, 60, 0.54, { wet: 0.3 });
+    bubbles(5, 350, 900, 0.324, 0.12);
+  },
+  // wet release "bloop" + settling bubbles
+  plop(big) {
+    tone(0.07, 320, 1050, 0.476, { attack: 0.003 });
+    tone(0.12, 95, 60, 0.35, { wet: 0.3 });
+    noise(0.05, { type: 'bandpass', f0: 1800, f1: 900, q: 1.5, vol: 0.168 });
+    bubbles(big ? 7 : 4, 500, 1400, 0.168, 0.25);
+  },
+  crackle() { bubble(rnd(1400, 3200), rnd(0.05, 0.12), { dur: rnd(0.008, 0.02), pan: touchPan() + rnd(-0.3, 0.3) }); },
+  sugar() {
+    const n = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++)
+      noise(rnd(0.006, 0.018), { type: 'highpass', f0: rnd(3000, 6000), q: 0.7, vol: rnd(0.092, 0.23), attack: 0.001, delay: i * rnd(0.008, 0.025), wet: 0.4 });
+  },
+  // Butter: deep soft "fwumpf" as air leaves the foam
+  butterPress() {
+    noise(0.5, { type: 'lowpass', f0: 900, f1: 140, q: 1, vol: 0.81, attack: 0.03 });
+    tone(0.3, 85, 48, 0.504, { attack: 0.02, wet: 0.3 });
+    noise(0.7, { type: 'bandpass', f0: 700, f1: 400, q: 0.8, vol: 0.108, attack: 0.15 });
+  },
+  butterDrag() { noise(0.25, { type: 'lowpass', f0: 500, f1: 180, q: 1, vol: 0.72, attack: 0.03 }); },
+  // slow inhale as the foam refills
+  butterSigh() {
+    noise(1.2, { type: 'lowpass', f0: 250, f1: 650, q: 0.8, vol: 0.28, attack: 0.35 });
+    bubbles(2, 180, 320, 0.168, 0.6);
+  },
+  foam() {
+    noise(rnd(0.003, 0.009), { type: 'highpass', f0: rnd(4000, 8000), q: 0.7, vol: rnd(0.03, 0.1), attack: 0.001, wet: 0.5, pan: rnd(-0.5, 0.5) });
+  },
+  // Dumpling: doughy "mmf"
+  dumplingPress() {
+    noise(0.26, { type: 'lowpass', f0: 1100, f1: 220, q: 1.2, vol: 1.08, attack: 0.015 });
+    tone(0.16, 150, 85, 0.528, { wet: 0.3 });
+    bubbles(3, 280, 600, 0.288, 0.1);
+  },
+  // soft cartoon bounce with a little wobble
+  boing() {
+    if (!live()) return;
+    const t = AC.currentTime;
+    const o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(240, t);
+    o.frequency.exponentialRampToValueAtTime(460, t + 0.04);
+    o.frequency.exponentialRampToValueAtTime(290, t + 0.32);
+    const lfo = AC.createOscillator(), depth = AC.createGain();
+    lfo.frequency.value = 11; depth.gain.value = 18;
+    lfo.connect(depth); depth.connect(o.frequency);
+    const g = env(t, 0.34, 0.494, 0.006);
+    o.connect(g); g.connect(out(undefined, 0.8));
+    o.start(t); lfo.start(t); o.stop(t + 0.4); lfo.stop(t + 0.4);
+    tone(0.06, 300, 900, 0.266, { delay: 0.01 });
+    bubbles(3, 500, 1100, 0.152, 0.2);
+  },
+  // Pop It: click that rings a silicone dome (modal synthesis) + thump + air puff
+  pop(f, pan) {
+    if (!live()) return;
+    const v = rnd(0.85, 1.1);
+    noise(0.004, { type: 'highpass', f0: 2500, q: 0.7, vol: 0.383 * v, attack: 0.0008, pan, wet: 0.5 });
+    const modes = [[1, 0.5, 0.075], [2.32, 0.2, 0.04], [4.25, 0.08, 0.022]];
+    for (const [m, a, d] of modes) tone(d, f * m, f * m * 0.9, a * v, { attack: 0.001, pan });
+    tone(0.05, 170, 80, 0.255 * v, { attack: 0.002, pan, wet: 0.3 });
+    noise(0.035, { type: 'bandpass', f0: 1400, f1: 700, q: 1.2, vol: 0.068, attack: 0.004, pan });
+  },
+  flip() {
+    noise(0.3, { type: 'bandpass', f0: 350, f1: 1600, q: 0.9, vol: 0.324, attack: 0.08, pan: -0.5 });
+    noise(0.05, { type: 'lowpass', f0: 1600, f1: 400, q: 1, vol: 0.81, attack: 0.002, delay: 0.26, wet: 0.6 });
+    tone(0.1, 110, 55, 0.54, { delay: 0.26, wet: 0.3 });
+    for (let i = 0; i < 12; i++) {
+      const f = rnd(560, 800), d = 0.3 + i * 0.022 + rnd(0, 0.01), pan = -0.7 + (i / 11) * 1.4;
+      tone(0.045, f, f * 0.9, rnd(0.144, 0.288), { attack: 0.001, delay: d, pan });
+      noise(0.003, { type: 'highpass', f0: 2500, q: 0.7, vol: 0.216, attack: 0.0008, delay: d, pan, wet: 0.5 });
+    }
+  },
+};
+
+// ---------- input state ----------
+const pointer = { x: 0, y: 0, down: false };
+const drag = { active: false, dx: 0, dy: 0, sx: 0, sy: 0, t: 0 };
+function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+let squishes = Number(safeGet('needoh-squishes') || 0);
+const countEl = document.getElementById('count');
+function updateCount() { countEl.textContent = `${squishes} squish${squishes === 1 ? '' : 'es'}`; }
+function addSquish() { squishes++; updateCount(); safeSet('needoh-squishes', squishes); }
+const buzz = ms => { if (navigator.vibrate) navigator.vibrate(ms); };
+
+// ---------- soft body ----------
+const N = 48;
+class SoftBody {
+  // o: { shape(angle, r) -> {x,y}, k, damp, smooth, sqx, sqy, pull, sigma, homeY }
+  constructor(o) {
+    this.o = o;
+    this.p = []; this.rest = [];
+    this.hx = 0; this.hy = 0; this.r = 100;
+    this.squeeze = 0;
+    for (let i = 0; i < N; i++) this.p.push({ x: 0, y: 0, vx: 0, vy: 0, grab: 0 });
+  }
+  setHome(x, y, r, reset) {
+    const first = this.rest.length === 0 || reset;
+    this.hx = x; this.hy = y + (this.o.homeY || 0) * r; this.r = r;
+    const pts = [];
+    for (let i = 0; i < N; i++) pts.push(this.o.shape((i / N) * TAU, r));
+    // center the rest shape on its centroid so shape matching doesn't drift
+    let cx = 0, cy = 0;
+    for (const q of pts) { cx += q.x; cy += q.y; }
+    cx /= N; cy /= N;
+    this.rest = pts.map(q => ({ x: q.x - cx, y: q.y - cy }));
+    if (first) this.rest.forEach((q, i) => { this.p[i].x = this.hx + q.x; this.p[i].y = this.hy + q.y; this.p[i].vx = this.p[i].vy = 0; });
+  }
+  centroid() {
+    let x = 0, y = 0;
+    for (const q of this.p) { x += q.x; y += q.y; }
+    return { x: x / N, y: y / N };
+  }
+  contains(x, y) {
+    let inside = false;
+    for (let i = 0, j = N - 1; i < N; j = i++) {
+      const a = this.p[i], b = this.p[j];
+      if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  }
+  grab(x, y) {
+    const sigma = this.r * this.o.sigma;
+    for (const q of this.p) {
+      const d2 = (q.x - x) ** 2 + (q.y - y) ** 2;
+      q.grab = Math.exp(-d2 / (2 * sigma * sigma));
+      if (q.grab < 0.04) q.grab = 0;
+      q.gx = q.x; q.gy = q.y;
+    }
+  }
+  release() { for (const q of this.p) q.grab = 0; }
+  step(dt) {
+    const o = this.o, c = this.centroid();
+    const sx = 1 + this.squeeze * o.sqx, sy = 1 - this.squeeze * o.sqy;
+    const hx = (this.hx - c.x) * 6, hy = (this.hy - c.y) * 6;
+    const damp = Math.exp(-o.damp * dt);
+    for (let i = 0; i < N; i++) {
+      const q = this.p[i], r = this.rest[i];
+      const ia = (i + N - 1) % N, ib = (i + 1) % N;
+      let fx = (c.x + r.x * sx - q.x) * o.k + hx;
+      let fy = (c.y + r.y * sy - q.y) * o.k + hy;
+      // smoothing relative to the rest shape, so corners (butter) survive
+      const a = this.p[ia], b = this.p[ib], ra = this.rest[ia], rb = this.rest[ib];
+      fx += ((a.x + b.x) / 2 - q.x - ((ra.x + rb.x) / 2 - r.x) * sx) * o.smooth;
+      fy += ((a.y + b.y) / 2 - q.y - ((ra.y + rb.y) / 2 - r.y) * sy) * o.smooth;
+      if (q.grab) {
+        fx += (q.gx + drag.dx * q.grab - q.x) * 420 * q.grab;
+        fy += (q.gy + drag.dy * q.grab - q.y) * 420 * q.grab;
+      }
+      q.vx = (q.vx + fx * dt) * damp; q.vy = (q.vy + fy * dt) * damp;
+    }
+    for (const q of this.p) { q.x += q.vx * dt; q.y += q.vy * dt; }
+  }
+  energy() { let e = 0; for (const q of this.p) e += Math.hypot(q.vx, q.vy); return e / N; }
+  stretch() {
+    const c = this.centroid();
+    let d = 0, mx = 0;
+    for (const q of this.p) { const l = Math.hypot(q.x - c.x, q.y - c.y); d += l; mx = Math.max(mx, l); }
+    return mx / (d / N) - 1;
+  }
+  path() {
+    const P = this.p;
+    ctx.beginPath();
+    ctx.moveTo((P[N - 1].x + P[0].x) / 2, (P[N - 1].y + P[0].y) / 2);
+    for (let i = 0; i < N; i++) {
+      const a = P[i], b = P[(i + 1) % N];
+      ctx.quadraticCurveTo(a.x, a.y, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    }
+    ctx.closePath();
+  }
+  bounds() {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const q of this.p) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+    return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+  }
+  // a point inside the body that follows the deformation: seg = boundary index, f = 0 center .. 1 edge
+  map(seg, f, c) {
+    seg = ((seg % N) + N) % N;
+    const i = Math.floor(seg), fr = seg - i;
+    const a = this.p[i], b = this.p[(i + 1) % N];
+    const ex = a.x + (b.x - a.x) * fr, ey = a.y + (b.y - a.y) * fr;
+    return { x: c.x + (ex - c.x) * f, y: c.y + (ey - c.y) * f };
+  }
+  shadow(bb, c, alpha = 0.16) {
+    ctx.save();
+    ctx.fillStyle = `rgba(90,60,130,${alpha})`;
+    ctx.filter = 'blur(14px)';
+    ctx.beginPath();
+    ctx.ellipse(c.x, bb.y1 + this.r * 0.05, bb.w * 0.46, this.r * 0.12, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Shared press/drag/release plumbing for the squishy toys
+function softToy(def) {
+  const body = new SoftBody(def.body);
+  const toy = {
+    ...def, body, soft: true,
+    resize(reset) { body.setHome(W / 2, H / 2 + 20, baseRadius() * (def.scale || 1), reset); },
+    down(x, y) {
+      if (!body.contains(x, y)) return false;
+      drag.active = true; drag.sx = x; drag.sy = y; drag.dx = drag.dy = 0; drag.t = performance.now();
+      body.grab(x, y);
+      def.onPress && def.onPress.call(toy, x, y);
+      buzz(12); addSquish();
+      return true;
+    },
+    move(x, y) {
+      if (!drag.active) return;
+      // rubbery resistance: the further you pull, the harder it gets
+      const rx = x - drag.sx, ry = y - drag.sy;
+      const d = Math.hypot(rx, ry), max = body.r * def.body.pull;
+      const k = d > 0 ? max * Math.tanh(d / max) / d : 0;
+      drag.dx = rx * k; drag.dy = ry * k;
+      def.onDrag && def.onDrag.call(toy, x, y);
+    },
+    up() {
+      if (!drag.active) return;
+      drag.active = false;
+      body.release();
+      buzz(8);
+      def.onRelease && def.onRelease.call(toy, Math.hypot(drag.dx, drag.dy) / body.r);
+    },
+    update(dt, t, now) {
+      const target = drag.active ? Math.min(1, (now - drag.t) / def.squeezeIn) : 0;
+      const rate = drag.active ? 1000 / def.squeezeIn * 2.4 : def.squeezeOut;
+      body.squeeze += (target - body.squeeze) * Math.min(1, dt * rate);
+      for (let i = 0; i < 6; i++) body.step(dt / 6);
+      def.onUpdate && def.onUpdate.call(toy, dt, t);
+      squishAudio(def.sound, body.energy(), body.stretch(), body.squeeze, dt, drag.active);
+    },
+    poke() {
+      for (const q of body.p) q.vy += (q.y < body.hy ? 1 : -1) * 260 + (Math.random() - .5) * 60;
+      def.onPress && def.onPress.call(toy, body.hx, body.hy);
+      setTimeout(() => def.onRelease && def.onRelease.call(toy, 0.3), 120);
+      addSquish();
+    },
+  };
+  return toy;
+}
+
+// ---------- toy: NeeDoh ----------
+const SKINS = [
+  { name: 'Bubblegum', a: '#ff9ccf', b: '#e8559e', glow: '#ffd3ea' },
+  { name: 'Grape',     a: '#c7a2ff', b: '#7d4fd6', glow: '#e8dbff' },
+  { name: 'Ocean',     a: '#8fe3ff', b: '#2c97d8', glow: '#d6f5ff' },
+  { name: 'Lime',      a: '#c9f779', b: '#6cbb2c', glow: '#ecffd0' },
+  { name: 'Peach',     a: '#ffc59c', b: '#f07a45', glow: '#ffe6d4' },
+  { name: 'Cloud',     a: '#ffffff', b: '#c9c4dd', glow: '#ffffff' },
+];
+const TEXTURES = ['Glitter', 'Sugar', 'Smooth'];
+let skin = SKINS[0], texture = 0;
+const speckles = Array.from({ length: 90 }, () => ({
+  seg: Math.random() * N, f: Math.sqrt(Math.random()) * 0.88,
+  s: 0.6 + Math.random() * 1.6, tw: Math.random() * TAU,
+}));
+const parts = [];
+function spawnDroplets(c, r, amount, color) {
+  const n = 6 + Math.floor(amount * 10);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, sp = 60 + Math.random() * 160;
+    parts.push({ x: c.x + Math.cos(a) * r * 0.9, y: c.y + Math.sin(a) * r * 0.9,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: 2 + Math.random() * 4, color });
+  }
+}
+
+const needoh = softToy({
+  name: 'NeeDoh', emoji: '🫧', title: 'NeeDoh Squish',
+  sub: 'click & hold to squeeze · drag to stretch · let go to plop',
+  body: { shape: (a, r) => ({ x: Math.cos(a) * r, y: Math.sin(a) * r }),
+    k: 90, damp: 5.5, smooth: 140, sqx: 0.28, sqy: 0.22, pull: 1.6, sigma: 0.55, homeY: -0.15 },
+  squeezeIn: 600, squeezeOut: 9,
+  sound: { bed: 0.8, lp: [500, 1500], bp: [220, 650], grains: 30, bf: [420, 1200], bvol: 0.18 },
+  crackleAcc: 0,
+  onPress() { sfx.grab(); },
+  onRelease(pulled) {
+    sfx.plop(pulled > 0.6);
+    spawnDroplets(this.body.centroid(), this.body.r, pulled, skin.a);
+  },
+  onUpdate(dt, t) {
+    const b = this.body;
+    if (!drag.active) {
+      const br = Math.sin(t * 1.3) * 0.6;
+      for (let i = 0; i < N; i++) b.p[i].vy += Math.sin(i / N * TAU + t) * br * dt * 8;
+    } else if (AC && soundOn) {
+      this.crackleAcc += dt * (3 + b.energy() * 0.08) * (texture === 2 ? 0.3 : 1);
+      while (this.crackleAcc > 1) { this.crackleAcc -= 1; texture === 1 ? sfx.sugar() : sfx.crackle(); }
+    }
+  },
+  draw(t) {
+    const b = this.body, c = b.centroid(), bb = b.bounds();
+    b.shadow(bb, c);
+    const g = ctx.createRadialGradient(c.x - bb.w * 0.18, c.y - bb.h * 0.22, b.r * 0.1, c.x, c.y, Math.max(bb.w, bb.h) * 0.62);
+    g.addColorStop(0, skin.glow); g.addColorStop(0.45, skin.a); g.addColorStop(1, skin.b);
+    b.path(); ctx.fillStyle = g; ctx.fill();
+
+    ctx.save(); b.path(); ctx.clip();
+    const rim = ctx.createRadialGradient(c.x, c.y, Math.min(bb.w, bb.h) * 0.3, c.x, c.y, Math.max(bb.w, bb.h) * 0.6);
+    rim.addColorStop(0, 'rgba(255,255,255,0)'); rim.addColorStop(1, 'rgba(60,20,80,.18)');
+    ctx.fillStyle = rim; ctx.fillRect(bb.x0 - 5, bb.y0 - 5, bb.w + 10, bb.h + 10);
+    if (texture !== 2) {
+      for (const s of speckles) {
+        const { x, y } = b.map(s.seg, s.f, c);
+        if (texture === 0) {
+          const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * 1.6 + s.tw));
+          ctx.fillStyle = `rgba(255,255,255,${0.55 * tw})`;
+          ctx.beginPath(); ctx.arc(x, y, s.s * (b.r / 160), 0, TAU); ctx.fill();
+        } else {
+          const z = s.s * 2.2 * (b.r / 160);
+          ctx.fillStyle = 'rgba(255,255,255,.75)';
+          ctx.save(); ctx.translate(x, y); ctx.rotate(s.tw); ctx.fillRect(-z / 2, -z / 2, z, z); ctx.restore();
+        }
+      }
+    }
+    pressBloom(b, bb, 0.25);
+    ctx.restore();
+    highlight(b, c, bb, 0.75 - b.squeeze * 0.35);
+  },
+});
+
+function pressBloom(b, bb, strength) {
+  if (!drag.active) return;
+  const pg = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, b.r * 0.7);
+  pg.addColorStop(0, `rgba(255,255,255,${strength + b.squeeze * 0.2})`);
+  pg.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = pg; ctx.fillRect(bb.x0, bb.y0, bb.w, bb.h);
+}
+function highlight(b, c, bb, alpha, ox = -0.2, oy = -0.26) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const hx = c.x + bb.w * ox, hy = c.y + bb.h * oy;
+  const hg = ctx.createRadialGradient(hx, hy, 0, hx, hy, bb.w * 0.2);
+  hg.addColorStop(0, 'rgba(255,255,255,.95)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.ellipse(hx, hy, bb.w * 0.17, bb.h * 0.1, -0.5, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+// ---------- toy: squishy butter (slow rise) ----------
+const butterSpecks = Array.from({ length: 40 }, () => ({ seg: Math.random() * N, f: Math.sqrt(Math.random()) * 0.85, s: 1 + Math.random() * 2 }));
+const butter = softToy({
+  name: 'Butter', emoji: '🧈', title: 'Squishy Butter',
+  sub: 'press to sink in · watch it slowly rise back',
+  scale: 1.05,
+  body: {
+    // rounded block (superellipse)
+    shape: (a, r) => {
+      const c = Math.cos(a), s = Math.sin(a), n = 5;
+      return { x: Math.sign(c) * Math.abs(c) ** (2 / n) * r * 1.3, y: Math.sign(s) * Math.abs(s) ** (2 / n) * r * 0.72 };
+    },
+    k: 16, damp: 16, smooth: 90, sqx: 0.2, sqy: 0.3, pull: 0.8, sigma: 0.5, homeY: 0,
+  },
+  squeezeIn: 1400, squeezeOut: 0.55,     // sinks slowly, rises very slowly
+  sound: { bed: 0.55, lp: [220, 550], bp: [110, 240], grains: 4, bf: [170, 380], bvol: 0.1 },
+  dents: [],
+  foamAcc: 0,
+  addDent(x, y) {
+    const c = this.body.centroid();
+    this.dent = { ox: x - c.x, oy: y - c.y, d: 0 };
+    this.dents.push(this.dent);
+    if (this.dents.length > 40) this.dents.shift();
+  },
+  onPress(x, y) { sfx.butterPress(); this.addDent(x, y); },
+  onDrag(x, y) {
+    const c = this.body.centroid();
+    if (this.dent && Math.hypot(x - c.x - this.dent.ox, y - c.y - this.dent.oy) > this.body.r * 0.18 && this.body.contains(x, y)) {
+      this.addDent(x, y);
+      sfx.butterDrag();
+    }
+  },
+  onRelease() { this.dent = null; sfx.butterSigh(); },
+  onUpdate(dt) {
+    let total = 0;
+    for (let i = this.dents.length - 1; i >= 0; i--) {
+      const d = this.dents[i];
+      if (d === this.dent) d.d = Math.min(1, d.d + dt * 1.6);
+      else d.d -= dt * 0.22;                      // ~4-5 s slow rise
+      if (d.d <= 0) this.dents.splice(i, 1); else total += d.d;
+    }
+    // memory foam faintly crackles while it recovers
+    if (AC && soundOn && !drag.active && (total > 0 || this.body.squeeze > 0.05)) {
+      this.foamAcc += dt * (2 + total * 6) * rnd(0.3, 1.7);
+      while (this.foamAcc > 1) { this.foamAcc -= 1; sfx.foam(); }
+    }
+  },
+  draw() {
+    const b = this.body, c = b.centroid(), bb = b.bounds(), r = b.r;
+    // plate
+    const py = b.hy + r * 0.72;
+    ctx.save();
+    ctx.fillStyle = 'rgba(90,60,130,.12)'; ctx.filter = 'blur(12px)';
+    ctx.beginPath(); ctx.ellipse(b.hx, py + r * 0.14, r * 2.05, r * 0.42, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+    const pg = ctx.createRadialGradient(b.hx, py - r * 0.1, r * 0.2, b.hx, py, r * 2);
+    pg.addColorStop(0, '#ffffff'); pg.addColorStop(0.8, '#eef0f8'); pg.addColorStop(1, '#d9dcec');
+    ctx.fillStyle = pg;
+    ctx.beginPath(); ctx.ellipse(b.hx, py, r * 2, r * 0.4, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,150,200,.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(b.hx, py, r * 1.6, r * 0.3, 0, 0, TAU); ctx.stroke();
+    ctx.fillStyle = 'rgba(90,60,40,.15)'; ctx.filter = 'blur(8px)';
+    ctx.beginPath(); ctx.ellipse(c.x, bb.y1, bb.w * 0.5, r * 0.08, 0, 0, TAU); ctx.fill();
+    ctx.filter = 'none';
+
+    // block
+    const g = ctx.createLinearGradient(0, bb.y0, 0, bb.y1);
+    g.addColorStop(0, '#fff6c2'); g.addColorStop(0.3, '#ffe27a'); g.addColorStop(1, '#f0b63c');
+    b.path(); ctx.fillStyle = g; ctx.fill();
+
+    ctx.save(); b.path(); ctx.clip();
+    // top face sheen
+    const top = ctx.createLinearGradient(0, bb.y0, 0, bb.y0 + bb.h * 0.35);
+    top.addColorStop(0, 'rgba(255,255,255,.55)'); top.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = top; ctx.fillRect(bb.x0, bb.y0, bb.w, bb.h * 0.35);
+    // soft side shading
+    const side = ctx.createLinearGradient(bb.x0, 0, bb.x1, 0);
+    side.addColorStop(0, 'rgba(200,120,20,.18)'); side.addColorStop(0.15, 'rgba(0,0,0,0)');
+    side.addColorStop(0.85, 'rgba(0,0,0,0)'); side.addColorStop(1, 'rgba(200,120,20,.22)');
+    ctx.fillStyle = side; ctx.fillRect(bb.x0, bb.y0, bb.w, bb.h);
+    // tiny air bubbles in the foam
+    ctx.fillStyle = 'rgba(255,250,220,.6)';
+    for (const s of butterSpecks) {
+      const p = b.map(s.seg, s.f, c);
+      ctx.beginPath(); ctx.arc(p.x, p.y, s.s * r / 180, 0, TAU); ctx.fill();
+    }
+    // finger dents
+    for (const d of this.dents) {
+      const x = c.x + d.ox, y = c.y + d.oy, dr = r * (0.2 + 0.08 * d.d);
+      const dg = ctx.createRadialGradient(x - dr * 0.25, y - dr * 0.3, 0, x, y, dr);
+      dg.addColorStop(0, `rgba(190,120,20,${0.3 * d.d})`);
+      dg.addColorStop(0.7, `rgba(210,140,30,${0.18 * d.d})`);
+      dg.addColorStop(1, 'rgba(210,140,30,0)');
+      ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(x, y, dr, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,230,${0.5 * d.d})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, dr * 0.85, 0.2, Math.PI * 0.9); ctx.stroke();
+    }
+    ctx.restore();
+    highlight(b, c, bb, 0.45, -0.28, -0.3);
+  },
+});
+
+// ---------- toy: dumpling squishy ----------
+const dumpling = softToy({
+  name: 'Dumpling', emoji: '🥟', title: 'Dumpling Squishy',
+  sub: 'squeeze the dumpling · stretch its cheeks',
+  body: {
+    shape: (a, r) => {
+      const c = Math.cos(a), s = Math.sin(a);
+      let y = s < 0 ? s * r * 0.85 : s * r * 0.42;               // dome top, flat-ish bottom
+      const da = Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2));
+      y -= r * 0.16 * Math.exp(-((da / 0.28) ** 2));              // pinched top knot
+      return { x: c * r * 1.12, y };
+    },
+    k: 75, damp: 6.5, smooth: 150, sqx: 0.32, sqy: 0.3, pull: 1.3, sigma: 0.55, homeY: 0,
+  },
+  squeezeIn: 500, squeezeOut: 7,
+  sound: { bed: 0.7, lp: [400, 1000], bp: [170, 450], grains: 14, bf: [320, 800], bvol: 0.14 },
+  blink: 0, nextBlink: 3,
+  onPress() { sfx.dumplingPress(); },
+  onRelease(pulled) {
+    sfx.boing();
+    spawnDroplets(this.body.centroid(), this.body.r, pulled * 0.5, '#fff4e0');
+  },
+  onUpdate(dt, t) {
+    this.nextBlink -= dt;
+    if (this.nextBlink < 0) { this.blink = 1; this.nextBlink = 2.5 + Math.random() * 3; }
+    this.blink = Math.max(0, this.blink - dt * 7);
+    if (!drag.active) {
+      const br = Math.sin(t * 1.1) * 0.5;
+      for (let i = 0; i < N; i++) this.body.p[i].vy += Math.sin(i / N * TAU + t) * br * dt * 6;
+    }
+  },
+  draw(t) {
+    const b = this.body, c = b.centroid(), bb = b.bounds(), r = b.r;
+    const TOP = N * 3 / 4;
+    b.shadow(bb, c, 0.18);
+
+    // steam
+    if (!drag.active) {
+      const top = b.p[TOP];
+      ctx.save();
+      ctx.lineCap = 'round'; ctx.lineWidth = r * 0.05;
+      for (let k = -1; k <= 1; k++) {
+        const ph = (t * 0.5 + k * 0.33 + 1) % 1;
+        ctx.strokeStyle = `rgba(255,255,255,${Math.sin(ph * Math.PI) * 0.7})`;
+        ctx.beginPath();
+        for (let s = 0; s <= 10; s++) {
+          const yy = top.y - r * 0.15 - s * r * 0.045 - ph * r * 0.35;
+          const xx = top.x + k * r * 0.28 + Math.sin(s * 0.7 + t * 2 + k) * r * 0.05;
+          s ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    const g = ctx.createRadialGradient(c.x - bb.w * 0.15, c.y - bb.h * 0.3, r * 0.1, c.x, c.y, Math.max(bb.w, bb.h) * 0.6);
+    g.addColorStop(0, '#fffdf8'); g.addColorStop(0.55, '#fbf1e2'); g.addColorStop(1, '#e8cfae');
+    b.path(); ctx.fillStyle = g; ctx.fill();
+
+    ctx.save(); b.path(); ctx.clip();
+    // pleats sweeping up to the pinched top
+    const knot = b.map(TOP, 0.93, c);
+    ctx.strokeStyle = 'rgba(190,150,105,.45)'; ctx.lineCap = 'round'; ctx.lineWidth = r * 0.022;
+    for (let k = -4; k <= 4; k++) {
+      if (!k) continue;
+      const end = b.map(TOP + k * 2.6, 0.5 + Math.abs(k) * 0.05, c);
+      const ctl = b.map(TOP + k * 1.9, 0.86, c);
+      ctx.beginPath(); ctx.moveTo(knot.x, knot.y); ctx.quadraticCurveTo(ctl.x, ctl.y, end.x, end.y); ctx.stroke();
+    }
+    // bottom browning
+    const bot = ctx.createLinearGradient(0, bb.y1 - bb.h * 0.25, 0, bb.y1);
+    bot.addColorStop(0, 'rgba(210,150,80,0)'); bot.addColorStop(1, 'rgba(210,150,80,.35)');
+    ctx.fillStyle = bot; ctx.fillRect(bb.x0, bb.y1 - bb.h * 0.25, bb.w, bb.h * 0.25);
+    pressBloom(b, bb, 0.3);
+    ctx.restore();
+
+    // knot
+    ctx.fillStyle = '#f3e3cc';
+    ctx.beginPath(); ctx.arc(knot.x, knot.y, r * 0.07, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,150,105,.5)'; ctx.lineWidth = r * 0.02;
+    ctx.beginPath(); ctx.arc(knot.x, knot.y, r * 0.04, 0.5, 4.5); ctx.stroke();
+
+    // face — squints when squeezed
+    const fx = c.x, fy = c.y + bb.h * 0.12;
+    const ex = bb.w * 0.15, er = r * 0.055;
+    const squint = b.squeeze > 0.45 || b.stretch() > 0.35;
+    ctx.fillStyle = '#4a3528'; ctx.strokeStyle = '#4a3528'; ctx.lineCap = 'round'; ctx.lineWidth = r * 0.03;
+    for (const side of [-1, 1]) {
+      const x = fx + side * ex, y = fy;
+      if (squint) {
+        ctx.beginPath();
+        ctx.moveTo(x + side * er, y - er); ctx.lineTo(x - side * er * 0.6, y); ctx.lineTo(x + side * er, y + er);
+        ctx.stroke();
+      } else {
+        const ry = er * (1 - this.blink * 0.9);
+        ctx.beginPath(); ctx.ellipse(x, y, er * 0.8, ry, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x - er * 0.25, y - ry * 0.35, er * 0.28, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#4a3528';
+      }
+      // blush
+      ctx.fillStyle = `rgba(255,140,150,${0.35 + b.squeeze * 0.35})`;
+      ctx.beginPath(); ctx.ellipse(x + side * ex * 0.45, y + er * 2, er * 1.4, er * 0.8, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#4a3528';
+    }
+    // mouth
+    const m = r * 0.05;
+    ctx.beginPath();
+    if (squint) { ctx.ellipse(fx, fy + er * 1.9, m * 0.7, m * 0.9, 0, 0, TAU); ctx.fill(); }
+    else { ctx.arc(fx - m / 2, fy + er * 1.4, m / 2, 0.1, Math.PI - 0.1); ctx.moveTo(fx + m, fy + er * 1.4); ctx.arc(fx + m / 2, fy + er * 1.4, m / 2, 0.1, Math.PI - 0.1); ctx.stroke(); }
+
+    highlight(b, c, bb, 0.6 - b.squeeze * 0.3, -0.22, -0.2);
+  },
+});
+
+// ---------- toy: pop it ----------
+const ROWS = ['#ff6b8b', '#ffa149', '#ffd84a', '#6fdc6f', '#4fb8ff', '#a77bff'];
+const SHAPES = ['Square', 'Heart', 'Circle'];
+const popit = {
+  name: 'Pop It', emoji: '🟣', title: 'Pop It',
+  sub: 'pop every bubble · drag across to pop lots · it flips when done',
+  soft: false,
+  n: 6, shape: 0, bubbles: [], flip: -1, side: 0, press: 0, flipQueued: false,
+  resize() { this.size = Math.min(W * 0.8, H * 0.52, 460); this.build(); },
+  inShape(u, v) { // u,v in -1..1
+    if (this.shape === 1) { const x = u * 1.15, y = -v * 1.15 + 0.25; return (x * x + y * y - 1) ** 3 - x * x * y ** 3 <= 0; }
+    if (this.shape === 2) return u * u + v * v <= 1.02;
+    return true;
+  },
+  build() {
+    const keep = this.bubbles;
+    this.n = this.shape === 0 ? 6 : 7;
+    this.bubbles = [];
+    const n = this.n, cell = this.size / n;
+    for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
+      const u = ((col + 0.5) / n) * 2 - 1, v = ((row + 0.5) / n) * 2 - 1;
+      if (!this.inShape(u, v)) continue;
+      this.bubbles.push({ row, col, x: (col + 0.5) * cell - this.size / 2, y: (row + 0.5) * cell - this.size / 2,
+        popped: false, a: 0, color: ROWS[Math.floor(row / n * ROWS.length)] });
+    }
+    if (keep.length === this.bubbles.length) keep.forEach((k, i) => { this.bubbles[i].popped = k.popped; this.bubbles[i].a = k.a; });
+    this.cell = cell; this.br = cell * 0.36;
+  },
+  cx() { return W / 2; }, cy() { return H / 2 + 20; },
+  hit(x, y) {
+    if (this.flip >= 0) return null;
+    const lx = x - this.cx(), ly = y - this.cy();
+    for (const b of this.bubbles) if (Math.hypot(lx - b.x, ly - b.y) < this.br * 1.15) return b;
+    return null;
+  },
+  onBoard(x, y) {
+    const s = this.size / 2 + this.cell * 0.2, lx = (x - this.cx()) / s, ly = (y - this.cy()) / s;
+    return Math.abs(lx) < 1 && Math.abs(ly) < 1 && (this.shape === 0 || this.inShape(lx * 0.95, ly * 0.95) || !!this.hit(x, y));
+  },
+  popAt(x, y) {
+    const b = this.hit(x, y);
+    if (!b || b.popped) return;
+    b.popped = true;
+    sfx.pop(620 + (this.n - b.row) * 25 + Math.random() * 90, (b.x / this.size) * 1.4);
+    buzz(10); addSquish();
+    this.press = 1;
+    if (!this.flipQueued && this.bubbles.every(q => q.popped)) {
+      this.flipQueued = true;
+      setTimeout(() => this.doFlip(), 450);
+    }
+  },
+  doFlip() {
+    if (this.flip >= 0) return;
+    this.flip = 0; this.flipped = false; this.flipQueued = false;
+    sfx.flip(); buzz(20);
+  },
+  down(x, y) {
+    if (!this.onBoard(x, y)) return false;
+    drag.active = true;
+    this.popAt(x, y);
+    return true;
+  },
+  move(x, y) {
+    if (drag.active) this.popAt(x, y);
+    cv.classList.toggle('poke', !!this.hit(x, y));
+  },
+  up() { drag.active = false; },
+  poke() { this.doFlip(); },
+  update(dt) {
+    for (const b of this.bubbles) b.a += ((b.popped ? 1 : 0) - b.a) * Math.min(1, dt * 22);
+    this.press = Math.max(0, this.press - dt * 6);
+    if (this.flip >= 0) {
+      this.flip += dt * 2.2;
+      if (this.flip >= 0.5 && !this.flipped) {
+        this.flipped = true; this.side ^= 1;
+        for (const b of this.bubbles) { b.popped = false; b.a = 0; }
+      }
+      if (this.flip >= 1) this.flip = -1;
+    }
+    silenceBed();
+  },
+  boardPath(pad) {
+    const s = this.size / 2 + pad;
+    ctx.beginPath();
+    if (this.shape === 1) {
+      // heart outline
+      for (let i = 0; i <= 80; i++) {
+        const t = (i / 80) * TAU;
+        const x = 16 * Math.sin(t) ** 3, y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        const px = x / 16 * s * 1.02, py = (y / 16 - 0.1) * s * 1.02;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+    } else if (this.shape === 2) {
+      ctx.arc(0, 0, s * 1.04, 0, TAU);
+    } else {
+      ctx.roundRect(-s, -s, s * 2, s * 2, s * 0.22);
+    }
+  },
+  draw() {
+    const cx = this.cx(), cy = this.cy();
+    const fs = this.flip >= 0 ? Math.max(0.02, Math.abs(Math.cos(this.flip * Math.PI))) : 1;
+    const squish = 1 - this.press * 0.015;
+    ctx.save();
+    ctx.translate(cx, cy);
+    // shadow
+    ctx.save();
+    ctx.fillStyle = 'rgba(90,60,130,.18)'; ctx.filter = 'blur(18px)';
+    ctx.translate(0, this.size * 0.06); ctx.scale(fs * squish, squish);
+    this.boardPath(this.cell * 0.25); ctx.fill();
+    ctx.restore();
+
+    ctx.scale(fs * squish, squish);
+    const pad = this.cell * 0.25;
+    // board edge (thickness)
+    ctx.save(); ctx.translate(0, this.cell * 0.08);
+    this.boardPath(pad); ctx.fillStyle = 'rgba(80,40,110,.25)'; ctx.fill();
+    ctx.restore();
+    // rainbow rows
+    ctx.save();
+    this.boardPath(pad); ctx.clip();
+    const top = -this.size / 2 - pad, bandH = (this.size + pad * 2) / ROWS.length;
+    const rows = this.side ? [...ROWS].reverse() : ROWS;
+    rows.forEach((col, i) => { ctx.fillStyle = col; ctx.fillRect(-this.size, top + i * bandH - 1, this.size * 2, bandH + 2); });
+    const sheen = ctx.createLinearGradient(-this.size / 2, -this.size / 2, this.size / 2, this.size / 2);
+    sheen.addColorStop(0, 'rgba(255,255,255,.35)'); sheen.addColorStop(0.5, 'rgba(255,255,255,0)'); sheen.addColorStop(1, 'rgba(0,0,0,.08)');
+    ctx.fillStyle = sheen; ctx.fillRect(-this.size, -this.size, this.size * 2, this.size * 2);
+    ctx.restore();
+
+    // bubbles
+    const r = this.br;
+    for (const b of this.bubbles) {
+      const col = this.side ? ROWS[ROWS.length - 1 - ROWS.indexOf(b.color)] : b.color;
+      const s = 1 - Math.sin(b.a * Math.PI) * 0.12;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.scale(s, s);
+      // socket ring
+      ctx.fillStyle = mix(col, '#000000', 0.18);
+      ctx.beginPath(); ctx.arc(0, r * 0.06, r * 1.08, 0, TAU); ctx.fill();
+      // dome (up) — lit from top-left
+      if (b.a < 0.99) {
+        ctx.globalAlpha = 1 - b.a;
+        const g = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.05, 0, 0, r * 1.05);
+        g.addColorStop(0, mix(col, '#ffffff', 0.7)); g.addColorStop(0.45, col); g.addColorStop(1, mix(col, '#000000', 0.22));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.7)';
+        ctx.beginPath(); ctx.ellipse(-r * 0.35, -r * 0.42, r * 0.28, r * 0.15, -0.6, 0, TAU); ctx.fill();
+      }
+      // cup (popped) — inverted lighting
+      if (b.a > 0.01) {
+        ctx.globalAlpha = b.a;
+        const g = ctx.createRadialGradient(r * 0.3, r * 0.35, r * 0.05, 0, 0, r * 1.05);
+        g.addColorStop(0, mix(col, '#ffffff', 0.35)); g.addColorStop(0.55, mix(col, '#000000', 0.08)); g.addColorStop(1, mix(col, '#000000', 0.3));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 0.98, 0, TAU); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = r * 0.08;
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.82, 0.1, 1.5); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  },
+};
+
+// ---------- toy switching ----------
+const TOYS = [needoh, popit, butter, dumpling];
+let toy = needoh;
+const titleEl = document.getElementById('title'), subEl = document.getElementById('sub');
+const toysEl = document.getElementById('toys');
+TOYS.forEach(t => {
+  const b = document.createElement('button');
+  b.textContent = `${t.emoji} ${t.name}`;
+  b.onclick = () => selectToy(t, b);
+  t.tab = b;
+  toysEl.appendChild(b);
+});
+function selectToy(t) {
+  if (toy.up) toy.up();
+  toy = t;
+  TOYS.forEach(x => x.tab.classList.toggle('on', x === t));
+  titleEl.textContent = t.title; subEl.textContent = t.sub;
+  document.getElementById('opt-needoh').hidden = t !== needoh;
+  document.getElementById('opt-popit').hidden = t !== popit;
+  cv.classList.remove('grabbing', 'poke');
+  t.resize(true);
+  safeSet('needoh-toy', t.name);
+}
+
+// ---------- input ----------
+cv.addEventListener('pointerdown', e => {
+  initAudio(); hideHint();
+  pointer.x = e.clientX; pointer.y = e.clientY;
+  if (toy.down(e.clientX, e.clientY)) {
+    if (toy.soft) cv.classList.add('grabbing');
+    cv.setPointerCapture(e.pointerId);
+  }
+});
+cv.addEventListener('pointermove', e => { pointer.x = e.clientX; pointer.y = e.clientY; toy.move(e.clientX, e.clientY); });
+const endPointer = () => { toy.up(); cv.classList.remove('grabbing'); };
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', endPointer);
+cv.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); initAudio(); hideHint(); toy.poke(); }
+  const i = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
+  if (i >= 0) selectToy(TOYS[i]);
+});
+const hint = document.getElementById('hint');
+function hideHint() { hint.style.opacity = 0; }
+
+// ---------- UI ----------
+const swEl = document.getElementById('swatches');
+SKINS.forEach((s, i) => {
+  const b = document.createElement('div');
+  b.className = 'swatch' + (i === 0 ? ' on' : '');
+  b.title = s.name;
+  b.style.background = `radial-gradient(circle at 35% 30%, ${s.glow}, ${s.a} 50%, ${s.b})`;
+  b.onclick = () => {
+    skin = s;
+    swEl.querySelectorAll('.swatch').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    initAudio(); sfx.plop();
+    for (const q of needoh.body.p) { q.vx += (Math.random() - .5) * 200; q.vy += (Math.random() - .5) * 200; }
+  };
+  swEl.appendChild(b);
+});
+const texBtn = document.getElementById('texBtn');
+texBtn.onclick = () => {
+  texture = (texture + 1) % TEXTURES.length;
+  texBtn.textContent = TEXTURES[texture];
+  texBtn.classList.toggle('on', texture !== 2);
+};
+document.getElementById('flipBtn').onclick = () => { initAudio(); popit.doFlip(); };
+const shapeBtn = document.getElementById('shapeBtn');
+shapeBtn.onclick = () => {
+  popit.shape = (popit.shape + 1) % SHAPES.length;
+  shapeBtn.textContent = SHAPES[popit.shape];
+  popit.bubbles = []; popit.build();
+  initAudio(); sfx.flip();
+};
+const sndBtn = document.getElementById('sndBtn');
+sndBtn.onclick = () => {
+  soundOn = !soundOn; initAudio();
+  sndBtn.textContent = soundOn ? '🔊 Sound' : '🔇 Muted';
+  sndBtn.classList.toggle('on', soundOn);
+  if (!soundOn) silenceBed();
+};
+
+// ---------- loop ----------
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  TOYS.forEach(t => t.resize(false));
+}
+resize();
+TOYS.forEach(t => t.resize(true));
+addEventListener('resize', resize);
+updateCount();
+const wanted = new URLSearchParams(location.search).get('toy') || safeGet('needoh-toy');
+selectToy(TOYS.find(t => t.name.toLowerCase() === (wanted || '').toLowerCase()) || needoh);
+
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.033, (now - lastT) / 1000); lastT = now;
+  const t = now / 1000;
+  toy.update(dt, t, now);
+
+  ctx.clearRect(0, 0, W, H);
+  toy.draw(t);
+
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.vy += 300 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 1.4;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    ctx.beginPath(); ctx.arc(p.x - p.r * .3, p.y - p.r * .3, p.r * .35 * p.life, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
