@@ -4967,7 +4967,7 @@ function endRush(cancel) {
   if (score >= 300) unlock('rush300');
   progDirty = true;
 }
-// every Pop It pop (yours or a stickman's) feeds the rush
+// every Pop It pop feeds the rush
 const basePopAt = popit.popAt;
 popit.popAt = function (x, y) {
   const b = this.hit(x, y), fresh = b && !b.popped;
