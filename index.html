@@ -302,6 +302,14 @@
     <button class="tog" id="spinStyleBtn">Rainbow</button>
     <div class="sep"></div>
   </div>
+  <div class="opts" id="opt-garden" hidden>
+    <button class="tog" id="smoothBtn" title="Sweep the sand smooth">🧹 Smooth</button>
+    <div class="sep"></div>
+  </div>
+  <div class="opts" id="opt-lava" hidden>
+    <button class="tog" id="lavaColBtn" title="Lamp colours">Classic</button>
+    <div class="sep"></div>
+  </div>
   <button class="tog" id="musicBtn" title="Lo-fi music (M)">🎵 Chill</button>
   <button class="tog" id="rainBtn" title="Rain (R)">🌧</button>
   <button class="tog" id="nightBtn" title="Night mode (N)">🌙</button>
@@ -987,6 +995,8 @@ const THEMES = {
   NeeDoh: ['#fde8f1', '#e6e9ff'], 'Pop It': ['#fff1e2', '#e2f0ff'], Butter: ['#fff6da', '#ffe8d8'],
   Dumpling: ['#e6f6ef', '#f7eee2'], Orbeez: ['#efe4ff', '#dcf4ff'], 'Bubble Wrap': ['#e2f2ff', '#efeaff'],
   Slime: ['#e2fbf2', '#e6e4ff'], 'Kinetic Sand': ['#fff0e4', '#f1e4ff'], Spinner: ['#e6eaff', '#f6e4ff'], 'Click Board': ['#eef0f8', '#f8eaf2'],
+  Cradle: ['#eef1f8', '#e6e2f5'], Bubbles: ['#e0f4ff', '#f6e6ff'], 'Zen Garden': ['#f1efe3', '#e4ecdf'], Kalimba: ['#fff1e0', '#f1e5ff'],
+  Ferrofluid: ['#e9ecf4', '#f1e7f0'], 'Lava Lamp': ['#e8dcff', '#d9d1ef'],
 };
 const NIGHT = ['#26205a', '#0b0e24'];
 const bg = { a: hexRgb('#fde8f1'), b: hexRgb('#e6e9ff'), night: 0, nightOn: false };
@@ -3560,10 +3570,731 @@ optCycle('slimeAddBtn', 'slimeAdd', SLIME_ADDS, () => { sfx.slimeLet(); for (con
 optToggle('sandLayerBtn', 'sandLayers', () => sand.newBlock(false));
 document.getElementById('seedsBtn').onclick = () => { initAudio(); orbeez.addSeeds(); };
 
+// ---------- six more toys: cradle, bubbles, zen garden, kalimba, ferrofluid, lava lamp ----------
+ACH.push(
+  ['cradle', '⚪', 'Click Clack', "100 clacks on Newton's cradle"],
+  ['bubbles', '🧼', 'Bubble Blower', 'Pop 50 soap bubbles'],
+  ['garden', '🪨', 'Zen Master', 'Rake the zen garden'],
+  ['kalimba', '🎼', 'Melody Maker', 'Pluck 50 kalimba notes'],
+  ['ferro', '🧲', 'Magnetic', 'Hold ferrofluid in full spikes for 3 seconds'],
+  ['lava', '🌋', 'Groovy', 'Warm up the lava lamp'],
+);
+Object.assign(sfx, {
+  clack(k, pan) {
+    noise(0.006, { type: 'highpass', f0: 3000, q: 0.7, vol: 0.7 * k, attack: 0.0005, pan, wet: 0.4 });
+    const f = rnd(3600, 4300);
+    tone(0.1, f, f, 0.12 * k, { attack: 0.0008, pan });
+    tone(0.05, f * 1.52, f * 1.52, 0.05 * k, { attack: 0.0008, pan });
+    tone(0.03, 950, 700, 0.18 * k, { attack: 0.001, pan, wet: 0.3 });
+  },
+  dip() { noise(0.16, { type: 'lowpass', f0: 1100, f1: 300, q: 1.2, vol: 0.3, attack: 0.01 }); bubbles(3, 500, 1200, 0.1, 0.12); },
+  blow(k) { noise(0.3, { type: 'bandpass', f0: 500, f1: 1100, q: 0.6, vol: 0.14 * k, attack: 0.06 }); },
+  soapPop(r, pan) {
+    const k = clamp(r / 40, 0.3, 1.6);
+    noise(0.005, { type: 'highpass', f0: 4000, q: 0.7, vol: 0.15 * k, attack: 0.0005, pan, wet: 0.5 });
+    bubble(rnd(1800, 3000) / Math.sqrt(k), 0.07 * k, { pan, dur: 0.02 });
+  },
+  rake(k, pan) {
+    noise(rnd(0.03, 0.07), { type: 'bandpass', f0: rnd(2500, 5000), q: 0.8, vol: 0.05 + k * 0.09, attack: 0.005, pan, wet: 0.3 });
+    if (Math.random() < 0.3) noise(0.09, { type: 'lowpass', f0: 700, f1: 400, q: 0.7, vol: 0.08 * k, attack: 0.01, pan });
+  },
+  pebble(pan) { tone(0.07, 650, 420, 0.3, { pan, wet: 0.4 }); noise(0.05, { type: 'lowpass', f0: 1800, f1: 500, q: 1, vol: 0.2, attack: 0.002, pan }); },
+  swoosh() { noise(0.75, { type: 'bandpass', f0: 400, f1: 2400, q: 0.7, vol: 0.28, attack: 0.15, pan: -0.6 }); noise(0.75, { type: 'bandpass', f0: 600, f1: 2000, q: 0.7, vol: 0.2, attack: 0.25, pan: 0.6 }); },
+  kalimba(f, v, pan) {
+    tone(1.9, f, f, 0.22 * v, { attack: 0.002, pan, wet: 1 });
+    tone(0.5, f * 2.01, f * 2.01, 0.04 * v, { attack: 0.002, pan });
+    tone(0.09, f * 5.43, f * 5.4, 0.05 * v, { attack: 0.001, pan });
+    noise(0.01, { type: 'bandpass', f0: Math.min(9000, f * 3), q: 2, vol: 0.1 * v, attack: 0.0008, pan });
+  },
+  magnetOn() { tone(0.12, 220, 110, 0.25, { wet: 0.3 }); noise(0.05, { type: 'highpass', f0: 3000, q: 0.7, vol: 0.12, attack: 0.002 }); },
+  magnetOff() { tone(0.2, 140, 90, 0.12, { wet: 0.4 }); },
+  ferroTick() { noise(rnd(0.004, 0.012), { type: 'highpass', f0: rnd(2000, 5000), q: 0.7, vol: rnd(0.03, 0.09), attack: 0.0005, pan: rnd(-0.4, 0.4), wet: 0.3 }); },
+  lavaBloop(pan) { bubble(rnd(110, 260), rnd(0.12, 0.22), { pan, dur: rnd(0.12, 0.2), rise: rnd(1.3, 1.8) }); },
+  warm() { noise(0.6, { type: 'lowpass', f0: 200, f1: 900, q: 1, vol: 0.25, attack: 0.15 }); tone(0.5, 70, 110, 0.2, { attack: 0.08, wet: 0.5 }); },
+});
+const panX = x => clamp((x / W) * 2 - 1, -1, 1) * 0.8;
+const bump = (key, n = 1) => { stats[key] = (stats[key] || 0) + n; if (stats[key] % 10 === 0) saveStats(); return stats[key]; };
+
+// ---------- toy: Newton's cradle ----------
+const cradle = {
+  name: 'Cradle', emoji: '⚪', title: "Newton's Cradle",
+  sub: 'pull a ball out and let go · click clack · pull out two for double clacks',
+  soft: false, balls: [], grab: null, clackT: 0,
+  resize() {
+    this.cx = W / 2; this.L = Math.min(H * 0.34, 250); this.top = H / 2 + 20 - this.L * 0.62;
+    this.r = Math.min(W * 0.045, this.L * 0.15, 34);
+    if (!this.balls.length) this.balls = Array.from({ length: 5 }, () => ({ th: 0, w: 0 }));
+  },
+  px(i) { return this.cx + (i - 2) * this.r * 2.0005; },
+  pos(i) { const b = this.balls[i]; return [this.px(i) + Math.sin(b.th) * this.L, this.top + Math.cos(b.th) * this.L]; },
+  down(x, y, id) {
+    for (let i = 0; i < 5; i++) {
+      const [bx, by] = this.pos(i);
+      if (Math.hypot(x - bx, y - by) < this.r * 1.35) { this.grab = { i, id, x, y }; sfx.tap(); ripple(bx, by, 0.5); return true; }
+    }
+    return Math.abs(x - this.cx) < this.r * 8 && y > this.top - 40 && y < this.top + this.L + this.r * 3;
+  },
+  move(x, y, id) { if (this.grab && this.grab.id === id) { this.grab.x = x; this.grab.y = y; } },
+  up(id) { if (this.grab && (id === undefined || this.grab.id === id)) this.grab = null; },
+  poke() { const b = this.balls[0]; b.th = -0.8; b.w = 0; sfx.tap(); },
+  setX(b, i, x) { b.th = Math.asin(clamp((x - this.px(i)) / this.L, -0.97, 0.97)); },
+  step(dt) {
+    const B = this.balls, L = this.L, r = this.r, G = 27;
+    for (let i = 0; i < 5; i++) {
+      const b = B[i];
+      if (this.grab && this.grab.i === i) {
+        const th = clamp(Math.atan2(this.grab.x - this.px(i), Math.max(10, this.grab.y - this.top)), -1.25, 1.25);
+        b.w = (th - b.th) / dt * 0.3; b.th = th;
+      } else { b.w += -G * Math.sin(b.th) * dt; b.w *= Math.exp(-0.06 * dt); b.th += b.w * dt; }
+    }
+    let impact = 0, at = 0;
+    const held = i => this.grab && this.grab.i === i;
+    for (let pass = 0; pass < 4; pass++) for (let i = 0; i < 4; i++) {
+      const a = B[i], c = B[i + 1];
+      const xa = this.px(i) + Math.sin(a.th) * L, xc = this.px(i + 1) + Math.sin(c.th) * L;
+      if (xc - xa - 2 * r >= 0) continue;
+      const va = L * a.w * Math.cos(a.th), vc = L * c.w * Math.cos(c.th);
+      if (va > vc) { // equal masses: they trade velocities
+        if (!held(i) && !held(i + 1)) {
+          a.w = vc / (L * Math.cos(a.th)); c.w = va / (L * Math.cos(c.th));
+          if (va - vc > impact) { impact = va - vc; at = (xa + xc) / 2; }
+        } else if (held(i)) c.w = Math.max(c.w, va / (L * Math.cos(c.th)));
+        else a.w = Math.min(a.w, vc / (L * Math.cos(a.th)));
+      }
+      if (held(i)) this.setX(c, i + 1, xa + 2 * r);
+      else if (held(i + 1)) this.setX(a, i, xc - 2 * r);
+      else { const m = (xa + xc) / 2; this.setX(a, i, m - r); this.setX(c, i + 1, m + r); }
+    }
+    return [impact, at];
+  },
+  update(dt) {
+    silenceBed();
+    let impact = 0, at = 0;
+    for (let s = 0; s < 10; s++) { const [im, x] = this.step(dt / 10); if (im > impact) { impact = im; at = x; } }
+    this.clackT -= dt;
+    if (impact > 35 && this.clackT <= 0) {
+      this.clackT = 0.035;
+      sfx.clack(Math.min(1, impact / 900), panX(at));
+      if (impact > 300) { sparkle(at, this.top + this.L, 3, ['#ffffff', '#dfe6ff'], 0.5); addSquish(); }
+      if (bump('clacks') >= 100) unlock('cradle');
+    }
+  },
+  draw() {
+    const { cx, L, r, top } = this, baseY = top + L + r * 2.2, fw = r * 8;
+    ctx.save();
+    ctx.fillStyle = 'rgba(70,50,110,.18)'; ctx.filter = 'blur(14px)';
+    ctx.beginPath(); ctx.ellipse(cx, baseY + r * 0.9, fw * 1.05, r * 0.5, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+    // glossy black base
+    const bgd = ctx.createLinearGradient(0, baseY, 0, baseY + r * 0.9);
+    bgd.addColorStop(0, '#4a4560'); bgd.addColorStop(1, '#16131f');
+    ctx.fillStyle = bgd; ctx.beginPath(); ctx.roundRect(cx - fw, baseY, fw * 2, r * 0.9, r * 0.25); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(cx - fw + r * 0.3, baseY + 2, fw * 2 - r * 0.6, 2);
+    // ball shadows on the base
+    for (let i = 0; i < 5; i++) {
+      const [bx, by] = this.pos(i), k = clamp(1 - (baseY - by - r) / L, 0.2, 1);
+      ctx.fillStyle = `rgba(0,0,0,${0.35 * k})`;
+      ctx.beginPath(); ctx.ellipse(bx, baseY + 3, r * (1.2 - k * 0.3), r * 0.16, 0, 0, TAU); ctx.fill();
+    }
+    // chrome frame
+    const chrome = (x0, y0, x1, y1, w) => {
+      const g = ctx.createLinearGradient(x0 - w, y0, x0 + w, y0);
+      g.addColorStop(0, '#8c91a3'); g.addColorStop(0.5, '#ffffff'); g.addColorStop(1, '#7b8092');
+      ctx.strokeStyle = g; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    };
+    chrome(cx - fw * 0.9, baseY, cx - fw * 0.9, top, r * 0.22);
+    chrome(cx + fw * 0.9, baseY, cx + fw * 0.9, top, r * 0.22);
+    const tg = ctx.createLinearGradient(0, top - r * 0.12, 0, top + r * 0.12);
+    tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, '#8c91a3');
+    ctx.strokeStyle = tg; ctx.lineWidth = r * 0.22; ctx.beginPath(); ctx.moveTo(cx - fw * 0.9, top); ctx.lineTo(cx + fw * 0.9, top); ctx.stroke();
+    // strings (two each, for a bit of depth) and balls
+    for (let i = 0; i < 5; i++) {
+      const [bx, by] = this.pos(i), p = this.px(i);
+      ctx.strokeStyle = 'rgba(80,70,110,.55)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(p - r * 0.55, top); ctx.lineTo(bx, by - r); ctx.moveTo(p + r * 0.55, top); ctx.lineTo(bx, by - r); ctx.stroke();
+      const g = ctx.createRadialGradient(bx - r * 0.35, by - r * 0.4, r * 0.05, bx, by, r);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(0.35, '#d9dde8'); g.addColorStop(0.75, '#7d8396'); g.addColorStop(1, '#3d4153');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, r, 0, TAU); ctx.fill();
+      ctx.save(); ctx.beginPath(); ctx.arc(bx, by, r, 0, TAU); ctx.clip(); // the room reflected in the chrome
+      ctx.fillStyle = 'rgba(40,40,70,.35)'; ctx.beginPath(); ctx.ellipse(bx, by + r * 0.55, r * 1.1, r * 0.45, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(bx - r, by + r * 0.05, r * 2, r * 0.07);
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.beginPath(); ctx.ellipse(bx - r * 0.35, by - r * 0.45, r * 0.22, r * 0.12, -0.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#9aa0b4'; ctx.beginPath(); ctx.arc(bx, by - r, r * 0.12, 0, TAU); ctx.fill();
+    }
+  },
+};
+
+// ---------- toy: bubble wand ----------
+function drawSoapBubble(x, y, r, hue, t, ph) {
+  const g = ctx.createRadialGradient(x, y, r * 0.55, x, y, r);
+  g.addColorStop(0, 'rgba(255,255,255,0.03)'); g.addColorStop(0.85, `hsla(${hue % 360},90%,78%,0.12)`); g.addColorStop(1, `hsla(${(hue + 60) % 360},90%,70%,0.38)`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  ctx.lineWidth = Math.max(1, r * 0.07);
+  for (let k = 0; k < 3; k++) { // swirling oily rainbow film
+    const a = ph + t * 0.8 + k * 2.1;
+    ctx.strokeStyle = `hsla(${(hue + k * 100 + t * 60) % 360},100%,70%,.32)`;
+    ctx.beginPath(); ctx.arc(x, y, r * 0.9, a, a + 1.3); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.beginPath(); ctx.ellipse(x - r * 0.38, y - r * 0.42, r * 0.22, r * 0.11, -0.7, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.beginPath(); ctx.arc(x + r * 0.4, y + r * 0.38, r * 0.06, 0, TAU); ctx.fill();
+}
+const soap = {
+  name: 'Bubbles', emoji: '🧼', title: 'Bubble Wand',
+  sub: 'drag to wave the wand · hold still for a giant bubble · tap bubbles to pop them',
+  soft: false, list: [], wand: null, big: null, blowAcc: 0, blowT: 0,
+  resize() {},
+  hitBubble(x, y) { for (let i = this.list.length - 1; i >= 0; i--) { const b = this.list[i]; if (Math.hypot(x - b.x, y - b.y) < b.r) return b; } return null; },
+  down(x, y, id) {
+    const b = this.hitBubble(x, y);
+    if (b) { this.pop(b); return true; }
+    this.wand = { id, x, y, vx: 0, vy: 0, t: performance.now() };
+    this.big = { r: 6, hue: rnd(0, 360), ph: rnd(0, TAU) };
+    sfx.dip();
+    return true;
+  },
+  move(x, y, id) {
+    const w = this.wand;
+    if (!w || w.id !== id) { const b = this.hitBubble(x, y); cv.classList.toggle('poke', !!b); return; }
+    const now = performance.now(), dt = Math.max(8, now - w.t) / 1000;
+    w.vx = w.vx * 0.5 + (x - w.x) / dt * 0.5; w.vy = w.vy * 0.5 + (y - w.y) / dt * 0.5;
+    w.x = x; w.y = y; w.t = now;
+  },
+  up(id) {
+    if (!this.wand || (id !== undefined && this.wand.id !== id)) return;
+    if (this.big && this.big.r > 14) this.launch(this.wand.x, this.wand.y - this.big.r * 0.85, this.big.r, this.wand.vx * 0.2, this.wand.vy * 0.2 - 30, this.big);
+    this.big = null; this.wand = null;
+  },
+  launch(x, y, r, vx, vy, look) {
+    if (this.list.length > 70) this.list.shift();
+    this.list.push({ x, y, r, vx, vy, hue: look ? look.hue : rnd(0, 360), ph: look ? look.ph : rnd(0, TAU), life: rnd(9, 18), age: 0, wob: rnd(0.6, 1.4) });
+  },
+  pop(b) {
+    const i = this.list.indexOf(b);
+    if (i < 0) return;
+    this.list.splice(i, 1);
+    sfx.soapPop(b.r, panX(b.x));
+    ripple(b.x, b.y, b.r / 50, '255,255,255');
+    sparkle(b.x, b.y, Math.min(14, 3 + Math.round(b.r / 6)), ['#ffffff', `hsl(${b.hue % 360},90%,80%)`], 0.5);
+    addSquish(); comboHit(b.x, b.y);
+    if (bump('soapPops') >= 50) unlock('bubbles');
+  },
+  poke() { // bubble machine
+    sfx.blow(1);
+    for (let i = 0; i < 18; i++) setTimeout(() => this.launch(W / 2 + rnd(-60, 60), H - 130, rnd(10, 40), rnd(-140, 140), rnd(-300, -140)), i * 40);
+  },
+  update(dt, t) {
+    silenceBed();
+    const w = this.wand;
+    if (w) {
+      if (performance.now() - w.t > 90) { w.vx *= Math.exp(-dt * 12); w.vy *= Math.exp(-dt * 12); }
+      const sp = Math.hypot(w.vx, w.vy);
+      if (sp > 260) { // waving: a stream of little bubbles off the ring
+        this.blowAcc += dt * sp / 45;
+        while (this.blowAcc > 1) { this.blowAcc--; this.launch(w.x + rnd(-10, 10), w.y + rnd(-10, 10), rnd(6, 26), w.vx * rnd(0.12, 0.3), w.vy * rnd(0.12, 0.3) - 20); }
+        if (this.big) this.big.r = Math.max(6, this.big.r * Math.exp(-dt * 5));
+        if ((this.blowT -= dt) <= 0) { this.blowT = 0.2; sfx.blow(Math.min(1, sp / 1500)); }
+      } else if (this.big) { // holding still: one bubble swells out of the ring
+        const max = Math.min(W, H) * 0.2;
+        this.big.r = Math.min(max, this.big.r + dt * 55);
+        if (this.big.r >= max) { this.launch(w.x, w.y - this.big.r * 0.85, this.big.r, 0, -40, this.big); this.big = { r: 6, hue: rnd(0, 360), ph: rnd(0, TAU) }; sfx.blow(0.6); }
+      }
+    }
+    const L = this.list;
+    for (const b of L) {
+      b.age += dt;
+      b.vy += (-26 - b.r * 0.3) * dt;
+      b.vx += Math.sin(t * 0.6 + b.ph) * 14 * dt;
+      b.vx *= Math.exp(-dt * 0.7); b.vy *= Math.exp(-dt * 0.7);
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      if (b.x < b.r) { b.x = b.r; b.vx = Math.abs(b.vx) * 0.5; }
+      if (b.x > W - b.r) { b.x = W - b.r; b.vx = -Math.abs(b.vx) * 0.5; }
+    }
+    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) { // soft bumps
+      const a = L[i], c = L[j], dx = c.x - a.x, dy = c.y - a.y, min = a.r + c.r, d2 = dx * dx + dy * dy;
+      if (d2 >= min * min || d2 === 0) continue;
+      const d = Math.sqrt(d2), push = (min - d) * 0.5 / d;
+      a.x -= dx * push; a.y -= dy * push; c.x += dx * push; c.y += dy * push;
+    }
+    for (const b of [...L]) if (b.age > b.life || b.y < b.r + 30) this.pop(b);
+  },
+  draw(t) {
+    for (const b of this.list) drawSoapBubble(b.x, b.y, b.r * (1 + 0.025 * Math.sin(t * 6 * b.wob + b.ph)), b.hue + t * 30, t, b.ph);
+    const w = this.wand, x = w ? w.x : pointer.x, y = w ? w.y : pointer.y, rr = 24;
+    if (this.big && w && this.big.r > 8) {
+      const br = this.big.r;
+      drawSoapBubble(x + Math.sin(t * 7) * br * 0.03, y - br * 0.85, br * (1 + 0.04 * Math.sin(t * 9)), this.big.hue + t * 30, t, this.big.ph);
+    }
+    if (!W || (!w && pointer.x === 0 && pointer.y === 0)) return;
+    // the wand
+    ctx.save(); ctx.translate(x, y);
+    ctx.strokeStyle = '#ff6fae'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(rr * 0.75, rr * 0.75); ctx.lineTo(rr * 3.4, rr * 3.6); ctx.stroke();
+    ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, rr, 3.4, 4.6); ctx.stroke();
+    if (w) { // soap film in the ring
+      const g = ctx.createLinearGradient(-rr, -rr, rr, rr);
+      g.addColorStop(0, `hsla(${(t * 80) % 360},100%,75%,.28)`); g.addColorStop(1, `hsla(${(t * 80 + 140) % 360},100%,75%,.28)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rr - 3, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  },
+};
+
+// ---------- toy: zen garden ----------
+const garden = {
+  name: 'Zen Garden', emoji: '🪨', title: 'Zen Garden',
+  sub: 'drag to rake the sand · tap to drop a pebble · 🧹 sweeps it smooth',
+  soft: false, rake: null, raked: 0, wipe: -1, rakeAcc: 0, pebbles: [],
+  resize() {
+    const w = Math.round(Math.min(W * 0.86, 820)), h = Math.round(Math.min(H * 0.56, 480));
+    const changed = !this.cv || this.w !== w || this.h !== h;
+    this.w = w; this.h = h; this.x0 = W / 2 - w / 2; this.y0 = H / 2 + 30 - h / 2;
+    if (!changed) return;
+    const mk = () => { const c = document.createElement('canvas'); c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); const g = c.getContext('2d'); g.scale(DPR, DPR); return [c, g]; };
+    [this.cv, this.g] = mk(); [this.fresh, this.fg] = mk();
+    const g = this.fg, sg = g.createLinearGradient(0, 0, w, h);
+    sg.addColorStop(0, '#f4ead3'); sg.addColorStop(1, '#e8dbbd');
+    g.fillStyle = sg; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < w * h / 60; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.5)' : 'rgba(150,120,80,.18)'; g.fillRect(Math.random() * w, Math.random() * h, 1.2, 1.2); }
+    this.g.drawImage(this.fresh, 0, 0, w, h);
+    this.stones = [[0.72, 0.36, 0.07], [0.8, 0.5, 0.042], [0.24, 0.66, 0.058]];
+    for (const [fx, fy, fr] of this.stones) this.rings(fx * w, fy * h, fr * w + 10, 4);
+  },
+  inside(x, y) { return x > this.x0 && x < this.x0 + this.w && y > this.y0 && y < this.y0 + this.h; },
+  line(x0, y0, x1, y1) {
+    const g = this.g;
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(150,118,70,.22)'; g.lineWidth = 4; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    g.strokeStyle = 'rgba(255,251,238,.5)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x0 + 1.3, y0 + 1.3); g.lineTo(x1 + 1.3, y1 + 1.3); g.stroke();
+  },
+  groove(x0, y0, x1, y1) {
+    const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d;
+    for (let k = -2; k <= 2; k++) this.line(x0 + nx * k * 9, y0 + ny * k * 9, x1 + nx * k * 9, y1 + ny * k * 9);
+  },
+  rings(x, y, r0, n) {
+    const g = this.g;
+    for (let k = 0; k < n; k++) {
+      const r = r0 + k * 11;
+      g.strokeStyle = 'rgba(150,118,70,.22)'; g.lineWidth = 4; g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke();
+      g.strokeStyle = 'rgba(255,251,238,.5)'; g.lineWidth = 1.6; g.beginPath(); g.arc(x + 1.3, y + 1.3, r, 0, TAU); g.stroke();
+    }
+  },
+  down(x, y, id) {
+    if (!this.inside(x, y) || this.wipe >= 0) return false;
+    this.rake = { id, x, y, moved: 0, ang: -Math.PI / 2 };
+    return true;
+  },
+  move(x, y, id) {
+    const r = this.rake;
+    if (!r || r.id !== id) return;
+    x = clamp(x, this.x0 + 4, this.x0 + this.w - 4); y = clamp(y, this.y0 + 4, this.y0 + this.h - 4);
+    const d = Math.hypot(x - r.x, y - r.y);
+    if (d < 3) return;
+    r.ang = Math.atan2(y - r.y, x - r.x);
+    this.groove(r.x - this.x0, r.y - this.y0, x - this.x0, y - this.y0);
+    r.x = x; r.y = y; r.moved += d; this.raked += d;
+    this.rakeAcc += d;
+    while (this.rakeAcc > 14) { this.rakeAcc -= 14; sfx.rake(Math.min(1, d / 25), panX(x)); }
+    if (this.raked > 2500) unlock('garden');
+  },
+  up(id) {
+    const r = this.rake;
+    if (!r || (id !== undefined && r.id !== id)) return;
+    if (r.moved < 6 && this.pebbles.length < 12) { // a pebble dropped into the sand, with ripples around it
+      const lx = r.x - this.x0, ly = r.y - this.y0, pr = rnd(9, 15);
+      this.pebbles.push({ x: lx, y: ly, r: pr, hue: rnd(0, 40), rot: rnd(0, TAU) });
+      this.rings(lx, ly, pr + 9, 3);
+      sfx.pebble(panX(r.x)); ripple(r.x, r.y, 0.8, '150,120,80'); addSquish();
+    }
+    this.rake = null;
+  },
+  poke() { this.smooth(); },
+  smooth() { if (this.wipe < 0) { this.wipe = 0; this.pebbles = []; sfx.swoosh(); } },
+  update(dt) {
+    silenceBed();
+    if (this.wipe >= 0) {
+      const a = this.wipe; this.wipe = Math.min(1, this.wipe + dt / 0.8);
+      const x0 = a * this.w, x1 = this.wipe * this.w + 1;
+      this.g.drawImage(this.fresh, x0 * DPR, 0, (x1 - x0) * DPR, this.h * DPR, x0, 0, x1 - x0, this.h);
+      if (this.wipe >= 1) {
+        this.wipe = -1;
+        for (const [fx, fy, fr] of this.stones) this.rings(fx * this.w, fy * this.h, fr * this.w + 10, 4);
+      }
+    }
+  },
+  stone(x, y, r, light, dark, rot) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    ctx.fillStyle = 'rgba(80,60,40,.28)'; ctx.beginPath(); ctx.ellipse(r * 0.18, r * 0.32, r * 1.05, r * 0.8, 0, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r * 1.1);
+    g.addColorStop(0, light); g.addColorStop(1, dark);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.78, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(-r * 0.35, -r * 0.35, r * 0.3, r * 0.14, -0.4, 0, TAU); ctx.fill();
+    ctx.restore();
+  },
+  draw() {
+    const { x0, y0, w, h } = this;
+    ctx.save();
+    ctx.fillStyle = 'rgba(80,60,40,.22)'; ctx.filter = 'blur(16px)'; ctx.fillRect(x0 + 6, y0 + 16, w, h);
+    ctx.restore();
+    const fr = 16, wood = ctx.createLinearGradient(0, y0 - fr, 0, y0 + h + fr);
+    wood.addColorStop(0, '#b9875a'); wood.addColorStop(1, '#8a5d3b');
+    ctx.fillStyle = wood; ctx.beginPath(); ctx.roundRect(x0 - fr, y0 - fr, w + fr * 2, h + fr * 2, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,230,200,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(x0 - fr + 3, y0 - fr + 3, w + fr * 2 - 6, h + fr * 2 - 6, 11); ctx.stroke();
+    ctx.drawImage(this.cv, x0, y0, w, h);
+    ctx.fillStyle = 'rgba(90,60,30,.18)'; ctx.fillRect(x0, y0, w, 5); ctx.fillRect(x0, y0, 5, h);
+    for (const [fx, fy, fr2] of this.stones) this.stone(x0 + fx * w, y0 + fy * h, fr2 * w, '#9a9aa6', '#45454f', fx * 7);
+    for (const p of this.pebbles) this.stone(x0 + p.x, y0 + p.y, p.r, `hsl(${30 + p.hue},15%,80%)`, `hsl(${30 + p.hue},10%,45%)`, p.rot);
+    const r = this.rake;
+    if (r) { // a little wooden rake, its teeth across the way you're pulling it
+      ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(r.ang + Math.PI / 2);
+      ctx.strokeStyle = '#9b6a42'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(0, -110); ctx.stroke();
+      ctx.fillStyle = '#b57e50'; ctx.beginPath(); ctx.roundRect(-26, -8, 52, 9, 3); ctx.fill();
+      ctx.strokeStyle = '#8a5d3b'; ctx.lineWidth = 3;
+      for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(k * 9, 0); ctx.lineTo(k * 9, 7); ctx.stroke(); }
+      ctx.restore();
+    }
+  },
+};
+
+// ---------- toy: kalimba ----------
+const KAL = [86, 83, 79, 76, 72, 69, 65, 62, 60, 64, 67, 71, 74, 77, 81, 84, 88]; // longest (lowest) in the middle, like the real thing
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const kalimba = {
+  name: 'Kalimba', emoji: '🎼', title: 'Kalimba',
+  sub: 'pluck the tines · drag across them to strum · space plays a tune',
+  soft: false, tines: [], fingers: new Map(),
+  resize() {
+    const bw = Math.min(W * 0.84, 560), bh = Math.min(H * 0.6, bw * 0.95);
+    this.bw = bw; this.bh = bh; this.cx = W / 2; this.cy = H / 2 + 40; this.bridge = bh * 0.14;
+    const n = KAL.length, tw = bw * 0.84 / n;
+    this.tw = tw;
+    this.tines = KAL.map((m, i) => ({ m, x: -bw * 0.42 + tw * (i + 0.5), w: tw * 0.62, len: bh * (0.3 + (88 - m) / 28 * 0.32), amp: 0, ph: 0, glow: 0 }));
+  },
+  find(x, y) {
+    const lx = x - this.cx, ly = y - this.cy;
+    for (const tn of this.tines) if (Math.abs(lx - tn.x) < this.tw / 2 && ly < this.bridge && ly > this.bridge - tn.len - 8) return tn;
+    return null;
+  },
+  pluck(tn, v = 1) {
+    tn.amp = v; tn.glow = 1; tn.ph = 0;
+    sfx.kalimba(mtof(tn.m), v, panX(this.cx + tn.x));
+    const hue = (tn.m - 60) * 13 % 360;
+    floatText(this.cx + tn.x, this.cy + this.bridge - tn.len - 14, '♪', 22, `hsl(${hue},90%,70%)`);
+    addSquish(); comboHit(this.cx + tn.x, this.cy + this.bridge - tn.len);
+    if (bump('plucks') >= 50) unlock('kalimba');
+  },
+  down(x, y, id) {
+    const lx = x - this.cx, ly = y - this.cy;
+    if (Math.abs(lx) > this.bw / 2 || Math.abs(ly) > this.bh / 2) return false;
+    const tn = this.find(x, y);
+    this.fingers.set(id, tn);
+    if (tn) this.pluck(tn);
+    return true;
+  },
+  move(x, y, id) {
+    const tn = this.find(x, y);
+    if (!this.fingers.has(id)) { cv.classList.toggle('poke', !!tn); return; }
+    if (tn && tn !== this.fingers.get(id)) this.pluck(tn, 0.8);
+    this.fingers.set(id, tn);
+  },
+  up(id) { if (id === undefined) this.fingers.clear(); else this.fingers.delete(id); },
+  poke() { // twinkle twinkle
+    const song = [72, 72, 79, 79, 81, 81, 79, 0, 77, 77, 76, 76, 74, 74, 72];
+    song.forEach((m, i) => { if (m) setTimeout(() => { const tn = this.tines.find(t => t.m === m); if (tn && toy === this) this.pluck(tn, 0.9); }, i * 300); });
+  },
+  update(dt) {
+    silenceBed();
+    for (const tn of this.tines) { tn.amp *= Math.exp(-dt * 3); tn.glow = Math.max(0, tn.glow - dt * 1.5); tn.ph += dt * 55; }
+  },
+  draw() {
+    const { bw, bh, cx, cy, bridge } = this;
+    ctx.save(); ctx.translate(cx, cy);
+    ctx.save(); ctx.fillStyle = 'rgba(80,50,30,.25)'; ctx.filter = 'blur(18px)';
+    ctx.beginPath(); ctx.roundRect(-bw / 2 + 8, -bh / 2 + 18, bw, bh, 40); ctx.fill(); ctx.restore();
+    // wooden body
+    const wg = ctx.createLinearGradient(-bw / 2, -bh / 2, bw / 2, bh / 2);
+    wg.addColorStop(0, '#e9b47a'); wg.addColorStop(0.5, '#d39459'); wg.addColorStop(1, '#b97843');
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.roundRect(-bw / 2, -bh / 2, bw, bh, [bw * 0.12, bw * 0.12, 30, 30]); ctx.fill();
+    ctx.save(); ctx.clip();
+    ctx.strokeStyle = 'rgba(120,70,30,.12)'; ctx.lineWidth = 2; // grain
+    for (let i = 0; i < 14; i++) { ctx.beginPath(); const y = -bh / 2 + (i + 0.5) * bh / 14; ctx.moveTo(-bw / 2, y); ctx.bezierCurveTo(-bw * 0.2, y + 14 * Math.sin(i), bw * 0.2, y - 12 * Math.cos(i * 1.3), bw / 2, y + 6); ctx.stroke(); }
+    ctx.restore();
+    // sound hole
+    ctx.fillStyle = '#3a2414'; ctx.beginPath(); ctx.arc(0, bridge + bh * 0.2, bh * 0.08, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,220,180,.35)'; ctx.lineWidth = 3; ctx.stroke();
+    // tines
+    for (const tn of this.tines) {
+      const tipY = bridge - tn.len, sway = Math.sin(tn.ph) * tn.amp * this.tw * 0.35;
+      const hue = (tn.m - 60) * 13 % 360;
+      if (tn.glow > 0) {
+        const g = ctx.createRadialGradient(tn.x, tipY + tn.len * 0.3, 0, tn.x, tipY + tn.len * 0.3, tn.len * 0.6);
+        g.addColorStop(0, `hsla(${hue},100%,70%,${0.45 * tn.glow})`); g.addColorStop(1, `hsla(${hue},100%,70%,0)`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(tn.x, tipY + tn.len * 0.3, tn.len * 0.6, 0, TAU); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(60,30,10,.25)';
+      ctx.beginPath(); ctx.roundRect(tn.x - tn.w / 2 + 3, tipY + 4, tn.w, tn.len, tn.w / 2); ctx.fill();
+      const mg = ctx.createLinearGradient(tn.x - tn.w / 2, 0, tn.x + tn.w / 2, 0);
+      mg.addColorStop(0, '#8d93a6'); mg.addColorStop(0.45, '#ffffff'); mg.addColorStop(1, '#9aa0b3');
+      ctx.fillStyle = mg;
+      ctx.beginPath(); // fixed at the bridge, the free tip swings
+      ctx.moveTo(tn.x - tn.w / 2, bridge); ctx.lineTo(tn.x - tn.w / 2 + sway, tipY + tn.w / 2);
+      ctx.arc(tn.x + sway, tipY + tn.w / 2, tn.w / 2, Math.PI, 0); ctx.lineTo(tn.x + tn.w / 2, bridge); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `hsla(${hue},70%,45%,.75)`;
+      ctx.font = `700 ${Math.round(this.tw * 0.32)}px Ubuntu, Nunito, system-ui, sans-serif`; ctx.textAlign = 'center';
+      ctx.fillText(NOTE_NAMES[tn.m % 12], tn.x + sway * 0.8, tipY + this.tw * 0.75);
+    }
+    // bridge bars
+    const bg3 = ctx.createLinearGradient(0, bridge - 8, 0, bridge + 12);
+    bg3.addColorStop(0, '#f2f3f8'); bg3.addColorStop(1, '#7d8396');
+    ctx.fillStyle = bg3; ctx.beginPath(); ctx.roundRect(-bw * 0.44, bridge - 6, bw * 0.88, 16, 6); ctx.fill();
+    ctx.fillStyle = '#5c4030'; ctx.beginPath(); ctx.roundRect(-bw * 0.42, bridge + 14, bw * 0.84, 10, 4); ctx.fill();
+    ctx.restore();
+  },
+};
+
+// ---------- toy: ferrofluid ----------
+const ferro = {
+  name: 'Ferrofluid', emoji: '🧲', title: 'Ferrofluid',
+  sub: 'press near the fluid — your finger is a magnet · watch it spike · drag it around',
+  soft: false, mag: null, field: 0, spikeT: 0, hum: null,
+  body: new SoftBody({
+    shape: (a, r) => { const c = Math.cos(a), s = Math.sin(a); return { x: c * r * 1.25, y: s < 0 ? s * r * 0.42 : s * r * 0.2 }; },
+    k: 26, damp: 6, smooth: 110, sqx: 0, sqy: 0, pull: 1, sigma: 0.4, homeY: 0,
+  }),
+  resize(reset) { this.R = Math.min(W, H) * 0.16; this.body.setHome(W / 2, H / 2 + 90, this.R, reset); this.dishY = H / 2 + 90 + this.R * 0.24; },
+  down(x, y, id) { this.mag = { id, x, y }; sfx.magnetOn(); buzz(15); addSquish(); return true; },
+  move(x, y, id) { if (this.mag && this.mag.id === id) { this.mag.x = x; this.mag.y = y; } },
+  up(id) { if (this.mag && (id === undefined || this.mag.id === id)) { this.mag = null; sfx.magnetOff(); } },
+  leave() { if (this.hum) this.hum.g.gain.setTargetAtTime(0, AC.currentTime, 0.05); },
+  poke() { for (const q of this.body.p) { q.vy += rnd(-300, 100); q.vx += rnd(-150, 150); } sfx.magnetOn(); },
+  update(dt, t) {
+    silenceBed();
+    const b = this.body, c = b.centroid(), r = b.r;
+    let target = 0;
+    if (this.mag) { const d = Math.hypot(this.mag.x - c.x, this.mag.y - c.y); target = clamp((r * 2.4 / Math.max(d, r * 0.5)) ** 2, 0, 1.6); }
+    this.field += (target - this.field) * Math.min(1, dt * 5);
+    if (this.mag && this.field > 0.04) {
+      for (const q of b.p) { // the magnet tugs hardest on the fluid nearest to it
+        const dx = this.mag.x - q.x, dy = this.mag.y - q.y, d = Math.hypot(dx, dy) || 1;
+        const f = Math.min(700, 30000 * this.field / (d + 90));
+        q.vx += dx / d * f * dt; q.vy += dy / d * f * dt;
+      }
+      const lim = r * 1.6;
+      b.hx += (clamp(this.mag.x, W / 2 - lim, W / 2 + lim) - b.hx) * Math.min(1, dt * 1.2 * Math.min(1, this.field));
+    } else b.hx += (W / 2 - b.hx) * Math.min(1, dt * 0.6);
+    for (let i = 0; i < 6; i++) b.step(dt / 6);
+    if (this.field > 0.9) { if ((this.spikeT += dt) > 3) unlock('ferro'); } else this.spikeT = 0;
+    if (live() && Math.random() < dt * this.field * 22) sfx.ferroTick();
+    if (AC && !this.hum) {
+      const o = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain();
+      o.type = 'sawtooth'; o.frequency.value = 52; lp.type = 'lowpass'; lp.frequency.value = 240; g.gain.value = 0;
+      o.connect(lp); lp.connect(g); g.connect(master); o.start();
+      this.hum = { g, lp };
+    }
+    if (this.hum) {
+      this.hum.g.gain.setTargetAtTime(soundOn ? Math.min(0.09, this.field * 0.06) : 0, AC.currentTime, 0.08);
+      this.hum.lp.frequency.setTargetAtTime(200 + this.field * 250, AC.currentTime, 0.08);
+    }
+  },
+  draw(t) {
+    const b = this.body, c = b.centroid(), bb = b.bounds(), r = b.r, m = this.mag;
+    // dish
+    const dw = this.R * 2.4;
+    ctx.save(); ctx.fillStyle = 'rgba(60,50,90,.18)'; ctx.filter = 'blur(14px)';
+    ctx.beginPath(); ctx.ellipse(W / 2, this.dishY + 18, dw * 1.05, this.R * 0.4, 0, 0, TAU); ctx.fill(); ctx.restore();
+    const dg = ctx.createLinearGradient(0, this.dishY - 20, 0, this.dishY + 30);
+    dg.addColorStop(0, 'rgba(255,255,255,.95)'); dg.addColorStop(1, 'rgba(210,214,232,.95)');
+    ctx.fillStyle = dg; ctx.beginPath(); ctx.ellipse(W / 2, this.dishY, dw, this.R * 0.34, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(150,155,190,.5)'; ctx.lineWidth = 2; ctx.stroke();
+    // spikes rise toward the magnet (drawn first, so the body covers their roots)
+    if (this.field > 0.03 && m) {
+      for (let i = 0; i < N; i++) {
+        const q = b.p[i], a = b.p[(i + N - 1) % N], z = b.p[(i + 1) % N];
+        let ex = z.x - a.x, ey = z.y - a.y; const el = Math.hypot(ex, ey) || 1; ex /= el; ey /= el;
+        const nx = ey, ny = -ex, dx = m.x - q.x, dy = m.y - q.y, dm = Math.hypot(dx, dy) || 1;
+        const facing = nx * dx / dm + ny * dy / dm;
+        if (facing < 0.15) continue;
+        const s = this.field * facing * facing * clamp(r * 2.2 / dm, 0, 1.2);
+        const hgt = r * 0.42 * s * (i % 2 ? 0.7 : 1) * (1 + 0.12 * Math.sin(t * 9 + i * 1.7));
+        if (hgt < 2) continue;
+        let ux = nx * 0.35 + dx / dm * 0.65, uy = ny * 0.35 + dy / dm * 0.65; const ul = Math.hypot(ux, uy); ux /= ul; uy /= ul;
+        const bw2 = el * 0.62, tx = q.x + ux * hgt, ty = q.y + uy * hgt;
+        const sg = ctx.createLinearGradient(q.x - ex * bw2, q.y - ey * bw2, q.x + ex * bw2, q.y + ey * bw2);
+        sg.addColorStop(0, '#2c2c38'); sg.addColorStop(0.45, '#08080d'); sg.addColorStop(1, '#16161f');
+        ctx.fillStyle = sg; ctx.beginPath();
+        ctx.moveTo(q.x - ex * bw2 - ux * 4, q.y - ey * bw2 - uy * 4);
+        ctx.quadraticCurveTo(q.x + ux * hgt * 0.35, q.y + uy * hgt * 0.35, tx, ty);
+        ctx.quadraticCurveTo(q.x + ux * hgt * 0.35, q.y + uy * hgt * 0.35, q.x + ex * bw2 - ux * 4, q.y + ey * bw2 - uy * 4);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1.2; // glint up one edge
+        ctx.beginPath(); ctx.moveTo(q.x - ex * bw2 * 0.4 + ux * hgt * 0.15, q.y - ey * bw2 * 0.4 + uy * hgt * 0.15); ctx.lineTo(tx - ex * 1.5, ty - ey * 1.5); ctx.stroke();
+      }
+    }
+    // glossy black body
+    const g = ctx.createRadialGradient(c.x - bb.w * 0.15, c.y - bb.h * 0.4, r * 0.05, c.x, c.y, Math.max(bb.w, bb.h) * 0.6);
+    g.addColorStop(0, '#3a3a48'); g.addColorStop(0.5, '#0d0d14'); g.addColorStop(1, '#030305');
+    b.path(); ctx.fillStyle = g; ctx.fill();
+    ctx.save(); b.path(); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 2; // the room reflected in it
+    for (let k = 0; k < 3; k++) { const q = b.map(N * 0.62 + k * 2.2, 0.7, c); ctx.beginPath(); ctx.ellipse(q.x, q.y, r * 0.25, r * 0.05, -0.2, 0, TAU); ctx.stroke(); }
+    ctx.restore();
+    const hl = b.map(N * 0.66, 0.62, c);
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.beginPath(); ctx.ellipse(hl.x, hl.y, r * 0.16, r * 0.04, -0.15, 0, TAU); ctx.fill();
+    // the magnet
+    const mx = m ? m.x : pointer.x, my = m ? m.y : pointer.y;
+    if (!m && pointer.x === 0 && pointer.y === 0) return;
+    ctx.save(); ctx.translate(mx, my);
+    if (m) {
+      ctx.strokeStyle = 'rgba(120,140,255,.25)'; ctx.lineWidth = 1.5; // field lines
+      for (let k = 1; k <= 3; k++) { ctx.beginPath(); ctx.ellipse(0, 18, 14 * k + Math.sin(t * 4 + k) * 2, 9 * k, 0, 0, TAU); ctx.stroke(); }
+    }
+    ctx.fillStyle = '#e8414f'; ctx.beginPath(); ctx.roundRect(-11, -36, 22, 24, [6, 6, 0, 0]); ctx.fill();
+    ctx.fillStyle = '#c6cad6'; ctx.beginPath(); ctx.roundRect(-11, -12, 22, 22, [0, 0, 6, 6]); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = '700 11px Ubuntu, system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('N', 0, -20); ctx.fillStyle = '#5b6070'; ctx.fillText('S', 0, 4);
+    ctx.restore();
+  },
+};
+
+// ---------- toy: lava lamp ----------
+const LAVAS = [
+  { name: 'Classic', liquid: [255, 208, 110], wax: [255, 80, 40], glow: '255,140,60' },
+  { name: 'Galaxy', liquid: [70, 45, 150], wax: [255, 95, 205], glow: '200,90,255' },
+  { name: 'Ocean', liquid: [140, 220, 255], wax: [30, 80, 210], glow: '90,170,255' },
+  { name: 'Alien', liquid: [205, 130, 255], wax: [130, 255, 100], glow: '160,255,120' },
+];
+const lava = {
+  name: 'Lava Lamp', emoji: '🌋', title: 'Lava Lamp',
+  sub: 'tap the glass to warm it up · drag to stir the wax · very groovy',
+  soft: false, blobs: [], col: 0, heat: 0, stir: null, warmTaps: 0, bloopT: 2,
+  resize() {
+    this.lh = Math.min(H * 0.68, 520); this.gw = this.lh * 0.34; this.gh = this.lh * 0.6;
+    this.cx = W / 2; this.gy = H / 2 + 40 - this.lh * 0.5 + this.lh * 0.1; // top of the glass
+    this.fw = 56; this.fh = Math.round(this.fw * this.gh / this.gw);
+    if (!this.fc || this.fc.height !== this.fh) {
+      this.fc = document.createElement('canvas'); this.fc.width = this.fw; this.fc.height = this.fh;
+      this.fg = this.fc.getContext('2d'); this.img = this.fg.createImageData(this.fw, this.fh);
+    }
+    if (!this.blobs.length) this.blobs = Array.from({ length: 8 }, () => ({ x: rnd(0.35, 0.65), y: rnd(0.25, 0.95), vx: 0, vy: 0, r: rnd(0.12, 0.2), temp: Math.random() }));
+  },
+  hw(yn) { // half-width of the glass at a height (0 top .. 1 bottom), as a fraction of the full width
+    return yn < 0.62 ? 0.5 * (0.56 + 0.44 * Math.sin(Math.PI / 2 * yn / 0.62)) : 0.5 * (1 - 0.24 * ((yn - 0.62) / 0.38) ** 2);
+  },
+  glassPath() {
+    ctx.beginPath();
+    for (let i = 0; i <= 24; i++) { const yn = i / 24; ctx.lineTo(this.cx - this.hw(yn) * this.gw, this.gy + yn * this.gh); }
+    for (let i = 24; i >= 0; i--) { const yn = i / 24; ctx.lineTo(this.cx + this.hw(yn) * this.gw, this.gy + yn * this.gh); }
+    ctx.closePath();
+  },
+  inGlass(x, y) { const yn = (y - this.gy) / this.gh; return yn > -0.05 && yn < 1.05 && Math.abs(x - this.cx) < this.hw(clamp(yn, 0, 1)) * this.gw + 10; },
+  down(x, y, id) {
+    if (!this.inGlass(x, y)) return Math.abs(x - this.cx) < this.gw && Math.abs(y - (this.gy + this.gh / 2)) < this.lh / 2;
+    this.stir = { id, x, y, vx: 0, vy: 0, t: performance.now() };
+    this.heat = Math.min(1.5, this.heat + 0.5);
+    sfx.warm(); ripple(x, y, 0.8, LAVAS[this.col].glow); addSquish(); buzz(10);
+    for (const b of this.blobs) b.vx += rnd(-0.08, 0.08);
+    if (++this.warmTaps >= 5) unlock('lava');
+    return true;
+  },
+  move(x, y, id) {
+    const s = this.stir;
+    if (!s || s.id !== id) return;
+    const now = performance.now(), dt = Math.max(8, now - s.t) / 1000;
+    s.vx = (x - s.x) / dt; s.vy = (y - s.y) / dt; s.x = x; s.y = y; s.t = now;
+    for (const b of this.blobs) { // push the wax near your finger along
+      const bx = this.cx + (b.x - 0.5) * this.gw, by = this.gy + b.y * this.gh, d = Math.hypot(bx - x, by - y);
+      if (d < this.gw * 0.35) { b.vx += s.vx / this.gw * 0.04; b.vy += s.vy / this.gh * 0.04; }
+    }
+  },
+  up(id) { if (this.stir && (id === undefined || this.stir.id === id)) this.stir = null; },
+  poke() { this.heat = 1.5; sfx.warm(); for (const b of this.blobs) { b.vx += rnd(-0.1, 0.1); b.vy += rnd(-0.1, 0.05); } },
+  update(dt, t) {
+    silenceBed();
+    this.heat = Math.max(0, this.heat - dt * 0.15);
+    const k = 2.2; // a lava lamp is slow; this one is a bit impatient
+    for (const [i, b] of this.blobs.entries()) {
+      if (b.y > 0.82) b.temp += dt * 0.22 * k; else if (b.y < 0.2) b.temp -= dt * 0.28 * k; else b.temp -= dt * 0.025 * k;
+      b.temp += this.heat * dt * 0.3;
+      b.temp = clamp(b.temp, 0, 1.3);
+      const wasUp = b.vy < 0;
+      b.vy += (0.5 - b.temp) * 0.09 * k * dt;
+      b.vx += Math.sin(t * 0.3 + i * 1.7) * 0.004 * dt;
+      b.vx *= Math.exp(-dt * 1.2); b.vy *= Math.exp(-dt * 0.9);
+      b.x += b.vx * dt * k; b.y += b.vy * dt * k;
+      const lim = this.hw(clamp(b.y, 0, 1)) - b.r * 0.45;
+      if (b.x < 0.5 - lim) { b.x = 0.5 - lim; b.vx = Math.abs(b.vx) * 0.3; }
+      if (b.x > 0.5 + lim) { b.x = 0.5 + lim; b.vx = -Math.abs(b.vx) * 0.3; }
+      const top = b.r * 0.35, bot = 1 - b.r * 0.3;
+      if (b.y < top) { b.y = top; b.vy = Math.abs(b.vy) * 0.2; }
+      if (b.y > bot) { b.y = bot; b.vy = -Math.abs(b.vy) * 0.2; }
+      if (wasUp !== (b.vy < 0) && Math.abs(b.vy) > 0.01 && live() && Math.random() < 0.5) sfx.lavaBloop(panX(this.cx + (b.x - 0.5) * this.gw));
+    }
+    if ((this.bloopT -= dt) <= 0) { this.bloopT = rnd(2, 5); if (live()) sfx.lavaBloop(rnd(-0.3, 0.3)); }
+  },
+  renderField() {
+    const { fw, fh, img } = this, d = img.data, P = LAVAS[this.col], B = this.blobs;
+    const bs = B.map(b => [b.x * fw, b.y * fh, (b.r * fw) ** 2]);
+    const [lr, lg, lb] = P.liquid, [wr, wg, wb] = P.wax;
+    let o = 0;
+    for (let y = 0; y < fh; y++) {
+      const light = 0.75 + 0.35 * (y / fh); // lit from the bulb below
+      for (let x = 0; x < fw; x++, o += 4) {
+        let F = 0;
+        for (const [bx, by, r2] of bs) F += r2 / ((x - bx) ** 2 + (y - by) ** 2 + 1);
+        if (F > 1) {
+          const s = Math.min(1, (F - 1) * 0.7), sh = (0.72 + 0.4 * s) * light;
+          d[o] = Math.min(255, wr * sh + 40 * s); d[o + 1] = Math.min(255, wg * sh + 25 * s); d[o + 2] = Math.min(255, wb * sh + 20 * s);
+        } else {
+          const gl = F * F * 0.35;
+          d[o] = Math.min(255, (lr * (1 - gl) + wr * gl) * light); d[o + 1] = Math.min(255, (lg * (1 - gl) + wg * gl) * light); d[o + 2] = Math.min(255, (lb * (1 - gl) + wb * gl) * light);
+        }
+        d[o + 3] = 255;
+      }
+    }
+    this.fg.putImageData(img, 0, 0);
+  },
+  draw(t) {
+    const P = LAVAS[this.col], { cx, gy, gw, gh, lh } = this;
+    const glowA = 0.3 + bg.night * 0.3 + this.heat * 0.12;
+    const halo = ctx.createRadialGradient(cx, gy + gh * 0.6, 0, cx, gy + gh * 0.6, lh * 0.75);
+    halo.addColorStop(0, `rgba(${P.glow},${glowA})`); halo.addColorStop(1, `rgba(${P.glow},0)`);
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cx, gy + gh * 0.6, lh * 0.75, 0, TAU); ctx.fill();
+    const metal = (x0, x1, y0, y1, wTop, wBot) => {
+      const g = ctx.createLinearGradient(cx - wBot, 0, cx + wBot, 0);
+      g.addColorStop(0, '#6d7183'); g.addColorStop(0.35, '#f4f5fa'); g.addColorStop(0.6, '#b8bccb'); g.addColorStop(1, '#5c6072');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx - wTop, y0); ctx.lineTo(cx + wTop, y0); ctx.lineTo(cx + wBot, y1); ctx.lineTo(cx - wBot, y1); ctx.closePath(); ctx.fill();
+    };
+    // base (a cone flaring down) and cap
+    const by0 = gy + gh, by1 = gy + gh + lh * 0.28;
+    ctx.save(); ctx.fillStyle = 'rgba(40,30,70,.25)'; ctx.filter = 'blur(12px)';
+    ctx.beginPath(); ctx.ellipse(cx, by1 + 6, gw * 0.75, 12, 0, 0, TAU); ctx.fill(); ctx.restore();
+    metal(0, 0, by0, by0 + lh * 0.04, this.hw(1) * gw, this.hw(1) * gw * 0.9);
+    metal(0, 0, by0 + lh * 0.04, by1, this.hw(1) * gw * 0.6, gw * 0.62);
+    metal(0, 0, gy - lh * 0.1, gy, gw * 0.12, this.hw(0) * gw);
+    // the glass, filled with liquid and wax
+    this.renderField();
+    ctx.save(); this.glassPath(); ctx.clip();
+    ctx.imageSmoothingEnabled = true; ctx.drawImage(this.fc, cx - gw / 2, gy, gw, gh);
+    const sh = ctx.createLinearGradient(cx - gw / 2, 0, cx + gw / 2, 0); // round glass: dark edges, bright streak
+    sh.addColorStop(0, 'rgba(0,0,0,.28)'); sh.addColorStop(0.22, 'rgba(255,255,255,.28)'); sh.addColorStop(0.3, 'rgba(255,255,255,0)');
+    sh.addColorStop(0.75, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = sh; ctx.fillRect(cx - gw / 2, gy, gw, gh);
+    ctx.restore();
+    this.glassPath(); ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+  },
+};
+document.getElementById('smoothBtn').onclick = () => { initAudio(); garden.smooth(); };
+const lavaBtn = document.getElementById('lavaColBtn');
+lavaBtn.onclick = () => { lava.col = (lava.col + 1) % LAVAS.length; lavaBtn.textContent = LAVAS[lava.col].name; initAudio(); sfx.warm(); };
+
 // ---------- toy switching ----------
-const TOYS = [needoh, popit, butter, dumpling, orbeez, wrap, slime, sand, spinner, board];
+const TOYS = [needoh, popit, butter, dumpling, orbeez, wrap, slime, sand, spinner, board, cradle, soap, garden, kalimba, ferro, lava];
 const OPTS = new Map([[needoh, 'opt-needoh'], [popit, 'opt-popit'], [butter, 'opt-butter'], [orbeez, 'opt-orbeez'], [wrap, 'opt-wrap'],
-  [slime, 'opt-slime'], [sand, 'opt-sand'], [spinner, 'opt-spinner']]);
+  [slime, 'opt-slime'], [sand, 'opt-sand'], [spinner, 'opt-spinner'], [garden, 'opt-garden'], [lava, 'opt-lava']]);
 let toy = needoh;
 const titleEl = document.getElementById('title'), subEl = document.getElementById('sub');
 const toysEl = document.getElementById('toys');
@@ -4413,7 +5144,7 @@ selectToy(TOYS.find(t => t.name.toLowerCase() === (wanted || '').toLowerCase()) 
 
 let lastT = performance.now();
 function frame(now) {
-  const dt = Math.min(0.033, (now - lastT) / 1000); lastT = now;
+  const dt = clamp((now - lastT) / 1000, 0, 0.033); lastT = Math.max(lastT, now);
   const t = now / 1000;
   toy.update(dt, t, now);
   updateFx(dt);
