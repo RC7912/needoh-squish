@@ -256,6 +256,8 @@
 <div class="bar" id="bar">
   <div class="opts" id="opt-needoh">
     <button class="tog on" id="texBtn" title="Surface texture">Glitter</button>
+    <button class="tog" id="faceBtn" title="A face that watches you">😊 Face</button>
+    <button class="tog" id="meshBtn" title="Mesh stress ball">🕸️ Mesh</button>
     <div class="sep"></div>
     <span class="opts" id="swatches"></span>
     <div class="sep"></div>
@@ -268,27 +270,32 @@
   </div>
   <div class="opts" id="opt-orbeez" hidden>
     <button class="tog" id="shakeBtn">🫨 Shake</button>
+    <button class="tog" id="seedsBtn" title="Drop in seeds that grow">🌱 Seeds</button>
     <button class="tog" id="orbColBtn">Rainbow</button>
     <div class="sep"></div>
   </div>
   <div class="opts" id="opt-wrap" hidden>
     <button class="tog" id="sheetBtn">📦 New sheet</button>
+    <button class="tog" id="wrapSizeBtn" title="Bubble size">Small</button>
     <div class="sep"></div>
   </div>
   <div class="opts" id="opt-butter" hidden>
     <button class="tog" id="honeyBtn" title="Honey mode: press to pour">🍯 Honey</button>
     <button class="tog" id="cleanBtn" title="Wipe the honey off">🧽</button>
+    <button class="tog" id="stampBtn" title="What you press in with">👆 Finger</button>
     <label class="colpick" title="Butter colour"><input type="color" id="butterColIn"><span>🧈</span></label>
     <label class="colpick" title="Honey colour"><input type="color" id="honeyColIn"><span>🍯</span></label>
     <div class="sep"></div>
   </div>
   <div class="opts" id="opt-slime" hidden>
     <button class="tog" id="slimeColBtn">Jelly</button>
+    <button class="tog" id="slimeAddBtn" title="Mix-ins">No add-ins</button>
     <div class="sep"></div>
   </div>
   <div class="opts" id="opt-sand" hidden>
     <button class="tog" id="newBlockBtn">🧱 New block</button>
     <button class="tog" id="sandColBtn">Lilac</button>
+    <button class="tog" id="sandLayerBtn" title="Rainbow layers">🌈 Layers</button>
     <div class="sep"></div>
   </div>
   <div class="opts" id="opt-spinner" hidden>
@@ -1362,14 +1369,14 @@ const butter = softToy({
   foamAcc: 0,
   addDent(x, y) {
     const c = this.body.centroid();
-    this.dent = { ox: x - c.x, oy: y - c.y, d: 0 };
+    this.dent = { ox: x - c.x, oy: y - c.y, d: 0, kind: STAMPS[topt.stamp][0], rot: rnd(-0.25, 0.25) };
     this.dents.push(this.dent);
     if (this.dents.length > 40) this.dents.shift();
     stats.dents++; saveStats();
     if (stats.dents >= 25) unlock('dents');
   },
   onPress(x, y) {
-    sfx.butterPress(); this.addDent(x, y);
+    sfx.butterPress(); this.addDent(x, y); if (topt.stamp) sfx.stamp();
     if (honeyAmount() > this.body.r * 0.05) this.crackHoney(x);
   },
   crackHoney(x) {
@@ -1540,6 +1547,7 @@ const butter = softToy({
     // finger dents
     for (const d of this.dents) {
       const x = c.x + d.ox, y = c.y + d.oy, dr = r * (0.2 + 0.08 * d.d);
+      if (d.kind && d.kind !== 'Finger') { drawStamp(d, x, y, dr); continue; }
       const dg = ctx.createRadialGradient(x - dr * 0.25, y - dr * 0.3, 0, x, y, dr);
       dg.addColorStop(0, mix(butterCol, '#000000', 0.3, 0.3 * d.d));
       dg.addColorStop(0.7, mix(butterCol, '#000000', 0.2, 0.18 * d.d));
@@ -1936,7 +1944,7 @@ const popit = {
     const r = this.br;
     for (const b of this.bubbles) {
       const col = this.side ? ROWS[ROWS.length - 1 - ROWS.indexOf(b.color)] : b.color;
-      const s = 1 - Math.sin(b.a * Math.PI) * 0.12;
+      const s = 1 - Math.sin(b.a * Math.PI) * 0.12 + popJiggle(b);
       ctx.save(); ctx.translate(b.x, b.y); ctx.scale(s, s);
       // socket ring
       ctx.fillStyle = mix(col, '#000000', 0.18);
@@ -2427,6 +2435,7 @@ const slime = softToy({
         ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(q.x, q.y, d.s * 6, 0, TAU); ctx.fill();
       }
     }
+    drawSlimeAddins(b, c, r, t);
     // trapped air bubbles: glossy little spheres
     for (const a of this.airs) {
       const q = b.map(a.seg, a.f, c), rr = a.r * r;
@@ -2511,7 +2520,7 @@ const sand = {
   },
   newBlock(instant) {
     this.x0 = W / 2 - this.bwMax / 2; this.x1 = W / 2 + this.bwMax / 2;
-    this.pile = new Float32Array(Math.ceil(this.trayW / 4));
+    this.pile = new Float32Array(Math.ceil(this.trayW / 4)); this.pileCol = [];
     this.slabs = []; this.grains = []; this.knife = null;
     this.drop = instant ? 0 : 1; this.dropV = 0;
   },
@@ -2567,7 +2576,7 @@ const sand = {
       if (g.x > this.x0 && g.x < this.x1 && g.y > this.top()) g.x = g.x - this.x0 < this.x1 - g.x ? this.x0 - 1 : this.x1 + 1;
       const bin = Math.floor((g.x - this.trayX) / binW);
       if (bin < 0 || bin >= this.pile.length) { if (g.y > H + 10) this.grains.splice(i, 1); continue; }
-      if (g.y >= this.trayY - this.pile[bin]) { this.pile[bin] += 2.2; this.grains.splice(i, 1); }
+      if (g.y >= this.trayY - this.pile[bin]) { this.pile[bin] += 2.2; if (g.c) this.pileCol[bin] = g.c; this.grains.splice(i, 1); }
     }
     // let the pile slump into a natural slope
     const P = this.pile;
@@ -2582,7 +2591,7 @@ const sand = {
       // a random point of the fallen slab, rotated about its pivot
       const lx = (sl.dir > 0 ? sl.x0 : sl.x0) - px + Math.random() * w, ly = -Math.random() * this.bh;
       const a = sl.dir * sl.ang, x = px + lx * Math.cos(a) - ly * Math.sin(a), y = this.trayY + lx * Math.sin(a) + ly * Math.cos(a);
-      this.grains.push({ x, y: Math.min(y, this.trayY - 1), vx: sl.dir * rnd(20, 160), vy: rnd(-120, 40), s: rnd(1.5, 3.2) });
+      this.grains.push({ x, y: Math.min(y, this.trayY - 1), vx: sl.dir * rnd(20, 160), vy: rnd(-120, 40), s: rnd(1.5, 3.2), c: layerColor(ly, this.bh) });
     }
     sfx.crumble(); shake(2.5);
   },
@@ -2603,11 +2612,17 @@ const sand = {
     ctx.beginPath(); ctx.moveTo(tx, ty);
     for (let i = 0; i < P.length; i++) ctx.lineTo(tx + i * 4 + 2, ty - P[i]);
     ctx.lineTo(tx + tw, ty); ctx.closePath(); fillSand();
+    if (this.pileCol.length) { // rainbow crumbs keep their colours in the pile
+      ctx.save(); ctx.clip();
+      for (let i = 0; i < P.length; i++) if (this.pileCol[i]) { ctx.fillStyle = this.pileCol[i]; ctx.fillRect(tx + i * 4 - 1, ty - P[i] - 2, 6, P[i] + 2); }
+      ctx.fillStyle = pat; ctx.fillRect(tx, ty - 200, tw, 200);
+      ctx.restore();
+    }
     // the block
     if (this.x1 - this.x0 > 1) {
       const dy = -this.drop * this.drop * H * 0.7;
       ctx.save(); ctx.translate(0, dy);
-      ctx.beginPath(); ctx.rect(this.x0, this.top(), this.x1 - this.x0, this.bh); fillSand();
+      fillSandRect(this.x0, this.top(), this.x1 - this.x0, this.bh);
       const topG = ctx.createLinearGradient(0, this.top(), 0, this.top() + this.bh * 0.25);
       topG.addColorStop(0, 'rgba(255,255,255,.35)'); topG.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = topG; ctx.fillRect(this.x0, this.top(), this.x1 - this.x0, this.bh * 0.25);
@@ -2619,11 +2634,10 @@ const sand = {
     for (const sl of this.slabs) {
       const px = sl.dir > 0 ? sl.x1 : sl.x0;
       ctx.save(); ctx.translate(px, ty); ctx.rotate(sl.dir * sl.ang);
-      ctx.beginPath(); ctx.rect(sl.x0 - px, -this.bh, sl.x1 - sl.x0, this.bh); fillSand();
+      fillSandRect(sl.x0 - px, -this.bh, sl.x1 - sl.x0, this.bh);
       ctx.restore();
     }
-    ctx.fillStyle = col;
-    for (const g of this.grains) ctx.fillRect(g.x, g.y, g.s, g.s);
+    for (const g of this.grains) { ctx.fillStyle = g.c || col; ctx.fillRect(g.x, g.y, g.s, g.s); }
     // the knife
     const k = this.knife;
     if (k) {
@@ -2722,7 +2736,7 @@ const spinner = {
     const lobeR = R * 0.36, lobeD = R * 0.62;
     // arms
     ctx.lineCap = 'round'; ctx.lineWidth = R * 0.42;
-    const armCol = st === 'Neon' ? '#1d1934' : st === 'Gold' ? '#d9a93a' : '#6f7bd6';
+    const armCol = st === 'Neon' || st === 'Plasma' ? '#1d1934' : st === 'Gold' ? '#d9a93a' : '#6f7bd6';
     ctx.strokeStyle = armCol;
     ctx.beginPath();
     for (let i = 0; i < 3; i++) { const a = i * TAU / 3; ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * lobeD, Math.sin(a) * lobeD); }
@@ -2732,6 +2746,7 @@ const spinner = {
       let c1, c2;
       if (st === 'Rainbow') { const h = (i * 120 + t * 20) % 360; c1 = `hsl(${h},90%,72%)`; c2 = `hsl(${(h + 40) % 360},85%,52%)`; }
       else if (st === 'Neon') { c1 = '#3a3366'; c2 = '#14112a'; }
+      else if (st === 'Plasma') { c1 = '#7b4fe6'; c2 = '#1c0f44'; }
       else { c1 = '#ffe9a3'; c2 = '#b8862a'; }
       const g = ctx.createRadialGradient(x - lobeR * 0.4, y - lobeR * 0.4, lobeR * 0.1, x, y, lobeR);
       g.addColorStop(0, c1); g.addColorStop(1, c2);
@@ -2744,7 +2759,7 @@ const spinner = {
       ctx.fillStyle = '#c9cede';
       for (let k = 0; k < 7; k++) { const b = k * TAU / 7; ctx.beginPath(); ctx.arc(x + Math.cos(b) * br * 0.65, y + Math.sin(b) * br * 0.65, br * 0.17, 0, TAU); ctx.fill(); }
       ctx.fillStyle = '#5d6478'; ctx.beginPath(); ctx.arc(x, y, br * 0.38, 0, TAU); ctx.fill();
-      if (st === 'Neon') { // glowing LED on each lobe
+      if (st === 'Neon' || st === 'Plasma') { // glowing LED on each lobe
         ctx.shadowColor = ['#ff4fd8', '#4ff3ff', '#b6ff4f'][i]; ctx.shadowBlur = 18;
         ctx.fillStyle = ctx.shadowColor; ctx.beginPath(); ctx.arc(x, y, lobeR * 0.14, 0, TAU); ctx.fill();
         ctx.shadowBlur = 0;
@@ -2978,6 +2993,572 @@ const board = {
     for (let i = -1; i <= 1; i++) ctx.fillRect(kx + i * r * 0.3 - 1, y - r * 0.5, 2, r);
   },
 };
+
+// ---------- toy upgrades: faces & mesh, jiggle & shapes, stamps, soup, seeds, sizes, add-ins, layers, plasma, RGB ----------
+const topt = Object.assign({ face: false, mesh: false, stamp: 0, wrapSize: 0, slimeAdd: 0, sandLayers: false },
+  (() => { try { return JSON.parse(safeGet('needoh-toyopts') || '{}'); } catch { return {}; } })());
+const saveTopt = () => safeSet('needoh-toyopts', JSON.stringify(topt));
+ACH.push(
+  ['dizzy', '😵‍💫', 'Dizzy', 'Spin the NeeDoh face until it gets dizzy'],
+  ['soup', '🍲', 'Soup Squirt', 'Squeeze the soup out of the dumpling'],
+  ['grow', '🌱', 'Green Thumb', 'Grow an Orbeez from a seed'],
+  ['splat', '💥', 'Jelly Splat', 'Hold an Orbeez until it bursts'],
+  ['mega', '🎈', 'Mega Popper', 'Pop a Mega bubble'],
+  ['crunch', '🥣', 'Crunchy', 'Squish crunchy slime'],
+  ['layers', '🌈', 'Rainbow Baker', 'Slice rainbow layered sand'],
+  ['plasma', '⚡', 'Plasma Ball', 'Spin the Plasma spinner past 1,000 RPM'],
+  ['rgb', '🎆', 'Light Show', 'Set off the keyboard light show'],
+);
+Object.assign(sfx, {
+  squirt() { noise(0.18, { type: 'bandpass', f0: 2200, f1: 700, q: 1.2, vol: 0.45, attack: 0.004 }); bubbles(3, 600, 1600, 0.14, 0.12); },
+  splash(pan) { noise(0.04, { type: 'bandpass', f0: rnd(1500, 3000), f1: 800, q: 1, vol: rnd(0.05, 0.12), attack: 0.002, pan }); },
+  seedDrop(pan) { bubble(rnd(1800, 2600), 0.14, { pan }); tone(0.04, 3000, 2600, 0.05, { pan }); },
+  grown(pan) { tone(0.12, 260, 620, 0.22, { pan }); bubbles(2, 500, 900, 0.1, 0.1, pan); },
+  splat(pan) {
+    noise(0.25, { type: 'lowpass', f0: 1600, f1: 200, q: 1.5, vol: 0.9, attack: 0.004, pan });
+    tone(0.14, 140, 60, 0.4, { pan, wet: 0.3 }); bubbles(8, 400, 1500, 0.2, 0.2, pan);
+  },
+  strain(pan, k) { tone(0.06, 300 + k * 500, 330 + k * 520, 0.05 * k, { type: 'triangle', pan }); },
+  bead() {
+    for (let i = 1 + Math.floor(Math.random() * 3); i > 0; i--)
+      noise(rnd(0.004, 0.012), { type: 'highpass', f0: rnd(2000, 4500), q: 0.8, vol: rnd(0.08, 0.22), attack: 0.0005, delay: rnd(0, 0.03), wet: 0.3, pan: touchPan() });
+  },
+  fishbowl() {
+    const f = rnd(2200, 3800);
+    tone(0.03, f, f * 0.9, rnd(0.05, 0.11), { type: 'triangle', attack: 0.0008, pan: touchPan() });
+    noise(0.004, { type: 'highpass', f0: 5000, q: 0.7, vol: 0.08, attack: 0.0005, pan: touchPan() });
+  },
+  zap(pan) { noise(rnd(0.02, 0.06), { type: 'bandpass', f0: rnd(2500, 6000), f1: rnd(1000, 3000), q: 3, vol: rnd(0.05, 0.12), attack: 0.001, pan, wet: 0.4 }); },
+  spark(pan) { noise(0.008, { type: 'highpass', f0: 5000, q: 0.7, vol: rnd(0.03, 0.08), attack: 0.0005, pan }); },
+  stamp() { tone(0.08, 180, 90, 0.3, { wet: 0.3 }); noise(0.06, { type: 'lowpass', f0: 900, f1: 300, q: 1, vol: 0.3, attack: 0.003 }); },
+  sweep() { [0, 2, 4, 7, 9, 12, 14, 16].forEach((n, i) => { const f = mtof(72 + n); tone(0.3, f, f, 0.1, { type: 'triangle', delay: i * 0.05, pan: -0.8 + i * 0.23 }); }); },
+  dizzy() { tone(0.5, 900, 300, 0.14, { type: 'triangle' }); tone(0.5, 1200, 400, 0.07, { delay: 0.1 }); },
+});
+// bigger bubble wrap: lower, longer, boomier pops
+const baseWrapPop = sfx.wrapPop;
+sfx.wrapPop = function (pan) {
+  const k = topt.wrapSize;
+  if (!k) return baseWrapPop.call(this, pan);
+  if (!live()) return;
+  const v = rnd(0.85, 1.1), low = k === 1 ? 0.65 : 0.4;
+  noise(rnd(0.02, 0.035) * (1 + k * 0.3), { type: 'bandpass', f0: rnd(1500, 2600) * low * 1.6, f1: 450, q: 0.7, vol: 1.5 * v, attack: 0.0006, pan, wet: 0.6 });
+  noise(0.006, { type: 'highpass', f0: 3500, q: 0.7, vol: 0.9 * v, attack: 0.0004, pan, wet: 0.4 });
+  tone(0.06 * (1 + k), rnd(130, 170) / k, 42, 0.6 * v, { attack: 0.001, pan, wet: 0.3 });
+  noise(0.12 * k, { type: 'lowpass', f0: 900, f1: 250, q: 0.7, vol: 0.2 * k, attack: 0.004, delay: 0.006, pan });
+};
+
+// ---- 🫧 NeeDoh: a face that watches you, and a mesh the gel bulges through ----
+const nd = { dizzy: 0, eyeX: 0, eyeY: 0, blink: 0, nextBlink: 3, spin: 0, meshAcc: 0 };
+const baseNeedohDraw = needoh.draw, baseNeedohUpdate = needoh.update, baseNeedohUp = needoh.up, baseNeedohPoke = needoh.poke;
+function makeDizzy() { if (nd.dizzy <= 0) sfx.dizzy(); nd.dizzy = 1.8; unlock('dizzy'); }
+needoh.update = function (dt, t, now) {
+  baseNeedohUpdate.call(this, dt, t, now);
+  nd.dizzy = Math.max(0, nd.dizzy - dt); nd.spin += dt * 9;
+  if ((nd.nextBlink -= dt) < 0) { nd.blink = 1; nd.nextBlink = rnd(2.5, 5); }
+  nd.blink = Math.max(0, nd.blink - dt * 7);
+  const c = this.body.centroid(), dx = pointer.x - c.x, dy = pointer.y - c.y, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / (this.body.r * 2));
+  nd.eyeX += (dx / d * k - nd.eyeX) * Math.min(1, dt * 10); nd.eyeY += (dy / d * k - nd.eyeY) * Math.min(1, dt * 10);
+  if (topt.mesh && drag.active && live()) { // gel squelching through the holes
+    nd.meshAcc += dt * (6 + this.body.squeeze * 30);
+    while (nd.meshAcc > 1) { nd.meshAcc--; bubble(rnd(500, 1300), rnd(0.05, 0.14), { pan: touchPan() + rnd(-0.2, 0.2) }); }
+  }
+};
+needoh.up = function (id) {
+  const was = drag.active, pulled = Math.hypot(drag.dx, drag.dy) / this.body.r;
+  baseNeedohUp.call(this, id);
+  if (was && pulled > 1.1 && topt.face) makeDizzy();
+};
+needoh.poke = function () { baseNeedohPoke.call(this); if (topt.face) makeDizzy(); };
+function drawMesh(b, c, bb) {
+  const r = b.r, sq = b.squeeze, SP = 12, RINGS = [0.3, 0.55, 0.8, 1.02];
+  ctx.save(); b.path(); ctx.clip();
+  // gel pillows pushing out between the strings, fattest near your finger
+  const pillow = (q, size, near) => {
+    const g = ctx.createRadialGradient(q.x - size * 0.3, q.y - size * 0.35, 0, q.x, q.y, size);
+    g.addColorStop(0, `rgba(255,255,255,${0.3 + sq * 0.35 + near * 0.2})`); g.addColorStop(0.6, 'rgba(255,255,255,.07)'); g.addColorStop(1, 'rgba(40,10,60,.12)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, size, 0, TAU); ctx.fill();
+  };
+  const nearOf = q => drag.active ? Math.max(0, 1 - Math.hypot(q.x - pointer.x, q.y - pointer.y) / (r * 1.1)) : 0;
+  pillow(c, r * 0.22 * (0.7 + sq * 0.5), nearOf(c));
+  for (let ri = 0; ri < RINGS.length - 1; ri++) for (let s = 0; s < SP; s++) {
+    const q = b.map((s + 0.5) * N / SP, (RINGS[ri] + RINGS[ri + 1]) / 2, c), near = nearOf(q);
+    pillow(q, r * (RINGS[ri + 1] - RINGS[ri]) * (0.48 + sq * 0.32 + near * 0.25), near);
+  }
+  // the net: dark cord with a light edge, biting into the gel
+  const cord = pts => {
+    for (const [w, col, o] of [[r * 0.034, 'rgba(45,25,70,.55)', 0], [r * 0.011, 'rgba(255,255,255,.4)', -r * 0.008]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath();
+      pts.forEach((q, i) => i ? ctx.lineTo(q.x + o, q.y + o) : ctx.moveTo(q.x + o, q.y + o)); ctx.stroke();
+    }
+  };
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const f of RINGS.slice(0, 3)) cord(Array.from({ length: N + 1 }, (_, i) => b.map(i, f, c)));
+  for (let s = 0; s < SP; s++) cord(Array.from({ length: 9 }, (_, i) => b.map(s * N / SP, RINGS[0] + (1.02 - RINGS[0]) * i / 8, c)));
+  ctx.restore();
+}
+function drawNeedohFace(b, c, bb, t) {
+  const r = b.r, sq = b.squeeze, st = b.stretch();
+  const fx = c.x + nd.eyeX * r * 0.06, fy = c.y + bb.h * 0.04 + nd.eyeY * r * 0.04;
+  const ex = bb.w * 0.17, er = r * 0.085;
+  const ink = skin.fx === 'galaxy' ? '#ffffff' : '#3b2440';
+  const squint = drag.active && (sq > 0.45 || st > 0.35), wide = drag.active && !squint;
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const side of [-1, 1]) {
+    const x = fx + side * ex, y = fy;
+    ctx.fillStyle = `rgba(255,110,150,${0.28 + sq * 0.4})`;
+    ctx.beginPath(); ctx.ellipse(x + side * er * 0.6, y + er * 1.6, er * 1.1, er * 0.55, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = r * 0.028;
+    if (nd.dizzy > 0) { // @_@
+      ctx.beginPath();
+      for (let k = 0; k <= 30; k++) { const a = k * 0.55 + nd.spin * side, rr = er * k / 30; k ? ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    } else if (squint) { // > <
+      ctx.beginPath(); ctx.moveTo(x + side * er * 0.8, y - er * 0.7); ctx.lineTo(x - side * er * 0.5, y); ctx.lineTo(x + side * er * 0.8, y + er * 0.7); ctx.stroke();
+    } else {
+      const big = wide ? 1.25 : 1, ry = er * big * (1 - nd.blink * 0.92);
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(x, y, er * 0.85 * big, Math.max(0.5, ry), 0, 0, TAU); ctx.fill();
+      ctx.lineWidth = r * 0.012; ctx.stroke();
+      if (ry > er * 0.25) { // pupils follow your cursor
+        const px = x + nd.eyeX * er * 0.33, py = y + nd.eyeY * er * 0.33;
+        ctx.fillStyle = skin.fx === 'galaxy' ? '#1a1240' : ink;
+        ctx.beginPath(); ctx.ellipse(px, py, er * 0.5 * big, Math.min(ry * 0.85, er * 0.6 * big), 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(px - er * 0.17, py - er * 0.22, er * 0.17, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(px + er * 0.17, py + er * 0.15, er * 0.07, 0, TAU); ctx.fill();
+      }
+    }
+  }
+  const my = fy + er * 1.9;
+  ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = r * 0.024;
+  ctx.beginPath();
+  if (nd.dizzy > 0) { for (let k = 0; k <= 12; k++) { const x = fx - er + k * er / 6, y = my + Math.sin(k * 1.4 + t * 12) * er * 0.18; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); }
+  else if (squint) { ctx.moveTo(fx - er * 0.7, my - er * 0.1); ctx.quadraticCurveTo(fx - er * 0.35, my + er * 0.45, fx, my); ctx.quadraticCurveTo(fx + er * 0.35, my + er * 0.45, fx + er * 0.7, my - er * 0.1); ctx.stroke(); }
+  else if (wide) { ctx.ellipse(fx, my, er * 0.35, er * 0.45, 0, 0, TAU); ctx.fill(); }
+  else { ctx.arc(fx, my - er * 0.3, er * 0.5, 0.25 * Math.PI, 0.75 * Math.PI); ctx.stroke(); }
+  ctx.restore();
+}
+needoh.draw = function (t) {
+  baseNeedohDraw.call(this, t);
+  const b = this.body, c = b.centroid(), bb = b.bounds();
+  if (topt.mesh) drawMesh(b, c, bb);
+  if (topt.face) drawNeedohFace(b, c, bb, t);
+};
+
+// ---- 🟣 Pop It: pops send a jiggle through the board; star & cat shapes; glow in the dark ----
+function popJiggle(b) {
+  if (b.jt === undefined || b.jt < 0 || b.jt > 1.2) return 0;
+  return Math.sin(b.jt * 28) * Math.exp(-b.jt * 6) * 0.1 * (b.jamp || 1);
+}
+const basePopAt0 = popit.popAt;
+popit.popAt = function (x, y) {
+  const b = this.hit(x, y), fresh = b && !b.popped;
+  basePopAt0.call(this, x, y);
+  if (!fresh || !b.popped) return;
+  for (const o of this.bubbles) {
+    if (o === b) continue;
+    const d = Math.hypot(o.x - b.x, o.y - b.y), amp = 1 / (1 + d / (this.cell * 1.2));
+    if (amp < 0.2) continue;
+    if (o.jt === undefined || o.jt > 0.25 || amp > (o.jamp || 0)) { o.jt = -d / (this.cell * 9); o.jamp = amp; }
+  }
+};
+const basePopitUpdate0 = popit.update;
+popit.update = function (dt, t, now) { basePopitUpdate0.call(this, dt, t, now); for (const b of this.bubbles) if (b.jt !== undefined) b.jt += dt; };
+SHAPES.push('Star', 'Cat');
+const STAR = Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 0.56 : 1.1; return [Math.cos(a) * rr, Math.sin(a) * rr + 0.06]; });
+const CAT_EARS = [[[-0.95, -1.02], [-0.22, -0.6], [-0.9, -0.16]], [[0.95, -1.02], [0.9, -0.16], [0.22, -0.6]]];
+function inPoly(x, y, P) {
+  let ins = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, yi] = P[i], [xj, yj] = P[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins;
+  }
+  return ins;
+}
+const baseInShape = popit.inShape;
+popit.inShape = function (u, v) {
+  const sh = SHAPES[this.shape];
+  if (sh === 'Star') return inPoly(u / 0.86, v / 0.86, STAR); // shrunk a little so bubbles fit inside the arms
+  if (sh === 'Cat') return u * u + (v - 0.12) ** 2 <= 0.8 * 0.8 || CAT_EARS.some(e => inPoly(u / 0.9, v / 0.9, e));
+  return baseInShape.call(this, u, v);
+};
+const baseBoardPath = popit.boardPath;
+popit.boardPath = function (pad) {
+  const sh = SHAPES[this.shape], s = this.size / 2 + pad;
+  if (sh === 'Star') {
+    ctx.beginPath(); STAR.forEach(([x, y], i) => i ? ctx.lineTo(x * s, y * s) : ctx.moveTo(x * s, y * s)); ctx.closePath();
+  } else if (sh === 'Cat') {
+    ctx.beginPath(); ctx.arc(0, 0.12 * s, 0.97 * s, 0, TAU);
+    for (const e of CAT_EARS) { ctx.moveTo(e[0][0] * s, e[0][1] * s); for (const [x, y] of e.slice(1)) ctx.lineTo(x * s, y * s); ctx.closePath(); }
+  } else baseBoardPath.call(this, pad);
+};
+const basePopitDraw0 = popit.draw;
+popit.draw = function (t) {
+  basePopitDraw0.call(this, t);
+  if (bg.night < 0.05 || this.flip >= 0) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const b of this.bubbles) {
+    if (b.a > 0.5) continue;
+    const x = this.cx() + b.x, y = this.cy() + b.y, rr = this.br * 1.7;
+    const col = this.side ? ROWS[ROWS.length - 1 - ROWS.indexOf(b.color)] : b.color;
+    const g = ctx.createRadialGradient(x, y, this.br * 0.3, x, y, rr);
+    g.addColorStop(0, mix(col, '#ffffff', 0.2, 0.4 * bg.night * (1 - b.a * 2))); g.addColorStop(1, mix(col, '#ffffff', 0, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+};
+
+// ---- 🧈 Butter: press in stamps that slowly rise back ----
+const STAMPS = [['Finger', '👆'], ['Heart', '❤️'], ['Star', '⭐'], ['Paw', '🐾'], ['Smile', '🙂']];
+function stampPath(kind, s) {
+  ctx.beginPath();
+  if (kind === 'Heart') {
+    ctx.moveTo(0, s * 0.7);
+    ctx.bezierCurveTo(-s * 1.3, -s * 0.1, -s * 0.6, -s * 1.05, 0, -s * 0.45);
+    ctx.bezierCurveTo(s * 0.6, -s * 1.05, s * 1.3, -s * 0.1, 0, s * 0.7);
+  } else if (kind === 'Star') {
+    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? s * 0.45 : s; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath();
+  } else if (kind === 'Paw') {
+    ctx.ellipse(0, s * 0.25, s * 0.55, s * 0.45, 0, 0, TAU);
+    for (const [px, py] of [[-0.62, -0.32], [-0.23, -0.7], [0.23, -0.7], [0.62, -0.32]]) { ctx.moveTo(px * s + s * 0.2, py * s); ctx.ellipse(px * s, py * s, s * 0.2, s * 0.25, 0, 0, TAU); }
+  } else ctx.arc(0, 0, s, 0, TAU);
+}
+function drawStamp(d, x, y, dr) {
+  const s = dr * 1.25;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(d.rot || 0);
+  stampPath(d.kind, s); ctx.fillStyle = mix(butterCol, '#000000', 0.28, 0.3 * d.d); ctx.fill();
+  ctx.save(); ctx.translate(s * 0.07, s * 0.08); stampPath(d.kind, s); // light catching the far wall
+  ctx.strokeStyle = `rgba(255,255,235,${0.6 * d.d})`; ctx.lineWidth = s * 0.08; ctx.stroke(); ctx.restore();
+  stampPath(d.kind, s); ctx.strokeStyle = mix(butterCol, '#000000', 0.4, 0.35 * d.d); ctx.lineWidth = s * 0.06; ctx.stroke();
+  if (d.kind === 'Smile') { // a raised little face in the middle of the round stamp
+    const lite = mix(butterCol, '#ffffff', 0.3, 0.85 * d.d);
+    ctx.fillStyle = lite;
+    for (const ex of [-0.35, 0.35]) { ctx.beginPath(); ctx.arc(ex * s, -s * 0.2, s * 0.12, 0, TAU); ctx.fill(); }
+    ctx.strokeStyle = lite; ctx.lineWidth = s * 0.12; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, s * 0.02, s * 0.48, 0.22 * Math.PI, 0.78 * Math.PI); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---- 🥟 Dumpling: squeeze hard and the soup squirts out ----
+const soup = { level: 1, drops: [], puddles: [], acc: 0, sndT: 0, squirted: false, steam: [], splashT: 0 };
+const baseDumpUpdate = dumpling.update, baseDumpDraw = dumpling.draw;
+dumpling.update = function (dt, t, now) {
+  baseDumpUpdate.call(this, dt, t, now);
+  const b = this.body, c = b.centroid(), sc = b.r / 140;
+  soup.level = Math.min(1, soup.level + dt * 0.12);
+  const top = b.map(N * 3 / 4, 0.98, c);
+  if (drag.active && b.squeeze > 0.55 && soup.level > 0.04) {
+    soup.acc += dt * 70 * (0.4 + b.squeeze);
+    while (soup.acc > 1) {
+      soup.acc--; soup.level -= 0.006;
+      const a = -Math.PI / 2 + rnd(-0.4, 0.4), sp = rnd(260, 520) * sc * (0.5 + soup.level * 0.7);
+      soup.drops.push({ x: top.x + rnd(-3, 3), y: top.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: rnd(2, 4.5) * sc });
+    }
+    if ((soup.sndT -= dt) <= 0) { soup.sndT = rnd(0.1, 0.18); sfx.squirt(); }
+    if (!soup.squirted) { soup.squirted = true; unlock('soup'); shake(2); }
+    if (Math.random() < dt * 10) soup.steam.push({ x: top.x + rnd(-10, 10), y: top.y, vy: rnd(-90, -50), s: rnd(8, 16) * sc, life: 1 });
+  } else { soup.acc = 0; if (!drag.active) soup.squirted = false; }
+  const floor = b.bounds().y1;
+  soup.splashT -= dt;
+  for (let i = soup.drops.length - 1; i >= 0; i--) {
+    const d = soup.drops[i];
+    d.vy += 1200 * dt; d.x += d.vx * dt; d.y += d.vy * dt;
+    if (d.vy > 0 && b.contains(d.x, d.y)) { soup.drops.splice(i, 1); continue; } // soaked back into the dough
+    if (d.y >= floor) {
+      soup.drops.splice(i, 1);
+      const p = soup.puddles.find(p => Math.abs(p.x - d.x) < p.r * 1.4);
+      if (p) { p.r = Math.min(26 * sc, p.r + 0.6); p.life = 1; } else soup.puddles.push({ x: d.x, y: floor + 2, r: d.r * 2, life: 1 });
+      if (soup.puddles.length > 24) soup.puddles.shift();
+      if (soup.splashT <= 0) { soup.splashT = 0.05; sfx.splash(clamp((d.x / W) * 2 - 1, -1, 1) * 0.8); }
+    }
+  }
+  for (let i = soup.puddles.length - 1; i >= 0; i--) if ((soup.puddles[i].life -= dt / 7) <= 0) soup.puddles.splice(i, 1);
+  for (let i = soup.steam.length - 1; i >= 0; i--) { const s = soup.steam[i]; s.y += s.vy * dt; s.s += dt * 14; if ((s.life -= dt * 1.2) <= 0) soup.steam.splice(i, 1); }
+};
+dumpling.draw = function (t) {
+  for (const p of soup.puddles) {
+    ctx.fillStyle = `rgba(232,168,70,${0.4 * p.life})`;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * 1.7, p.r * 0.45, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(255,240,200,${0.5 * p.life})`;
+    ctx.beginPath(); ctx.ellipse(p.x - p.r * 0.5, p.y - p.r * 0.12, p.r * 0.5, p.r * 0.12, 0, 0, TAU); ctx.fill();
+  }
+  baseDumpDraw.call(this, t);
+  for (const d of soup.drops) {
+    const g = ctx.createRadialGradient(d.x - d.r * 0.3, d.y - d.r * 0.3, 0, d.x, d.y, d.r);
+    g.addColorStop(0, 'rgba(255,245,210,.95)'); g.addColorStop(0.5, 'rgba(240,185,80,.9)'); g.addColorStop(1, 'rgba(200,130,40,.85)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.fill();
+  }
+  for (const s of soup.steam) {
+    ctx.fillStyle = `rgba(255,255,255,${0.35 * s.life})`;
+    ctx.beginPath(); ctx.arc(s.x + Math.sin(s.y * 0.05) * 6, s.y, s.s, 0, TAU); ctx.fill();
+  }
+};
+
+// ---- 🔮 Orbeez: seeds that grow in the water; hold one still and it bursts ----
+orbeez.addSeeds = function () {
+  if (this.balls.length >= 170) { floatText(this.cx, this.cy - this.R, 'the jar is full!', 20); return; }
+  const pal = ORB_PALETTES[this.palette];
+  for (let i = 0; i < 12 && this.balls.length < 170; i++) {
+    this.balls.push({ x: this.cx + rnd(-this.R * 0.4, this.R * 0.4), y: this.cy - this.R * 0.75 + rnd(-10, 10), vx: rnd(-40, 40), vy: rnd(0, 60),
+      color: pal[Math.floor(Math.random() * pal.length)], rs: 0.3, grow: rnd(0.9, 1.12), sq: 0, sa: 0 });
+    setTimeout(() => sfx.seedDrop(rnd(-0.4, 0.4)), i * 45);
+  }
+  addSquish();
+};
+orbeez.burst = function (b) {
+  const i = this.balls.indexOf(b);
+  if (i < 0) return;
+  this.balls.splice(i, 1);
+  const pan = clamp((b.x / W) * 2 - 1, -1, 1) * 0.8;
+  sfx.splat(pan); shake(3); buzz(30); addSquish(); comboHit(b.x, b.y); unlock('splat');
+  spawnDroplets({ x: b.x, y: b.y }, this.r * 0.6, 0.6, b.color);
+  ripple(b.x, b.y, 0.9);
+  for (let k = 0; k < 3; k++) { // it breaks into little jelly bits that stay in the jar
+    const a = rnd(0, TAU);
+    this.balls.push({ x: b.x + Math.cos(a) * this.r * 0.5, y: b.y + Math.sin(a) * this.r * 0.5, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220 - 100,
+      color: b.color, rs: rnd(0.32, 0.42), sq: 0, sa: 0 });
+  }
+};
+const baseOrbUpdate = orbeez.update;
+orbeez.update = function (dt, t, now) {
+  for (const b of this.balls) if (b.grow) {
+    b.rs = Math.min(b.grow, b.rs + dt * 0.11);
+    if (b.rs >= b.grow) { delete b.grow; sfx.grown(clamp((b.x / W) * 2 - 1, -1, 1) * 0.8); sparkle(b.x, b.y, 3, [b.color, '#ffffff'], 0.5); unlock('grow'); }
+  }
+  const nowMs = performance.now();
+  for (const f of this.fingers.values()) {
+    if (!(nowMs - f.t > 120 || Math.hypot(f.vx, f.vy) < 90)) continue;
+    const reach = this.R * 0.14 + this.r * 1.6, gap = b => Math.hypot(b.x - f.x, b.y - f.y) - this.r * b.rs;
+    if (!f.target || !this.balls.includes(f.target) || gap(f.target) > reach * 1.3) {
+      f.target = null;
+      let bd = reach;
+      for (const b of this.balls) { const d = gap(b); if (d < bd && b.rs > 0.6) { bd = d; f.target = b; } }
+    }
+    if (f.target) { f.target.press = (f.target.press || 0) + dt; f.target.pf = true; }
+  }
+  for (const b of [...this.balls]) {
+    if (!b.press) continue;
+    if (!b.pf) b.press = Math.max(0, b.press - dt * 2);
+    b.pf = false;
+    if (b.press > 0.25) { // trembling under the pressure, straining to hold together
+      b.x += rnd(-1, 1) * b.press * 2; b.y += rnd(-1, 1) * b.press * 2; b.sq = Math.max(b.sq, 0.3 + b.press * 0.25);
+      if (Math.random() < dt * 14) sfx.strain(clamp((b.x / W) * 2 - 1, -1, 1) * 0.8, Math.min(1, b.press));
+    }
+    if (b.press > 1.05) this.burst(b);
+  }
+  baseOrbUpdate.call(this, dt, t, now);
+};
+
+// ---- 📦 Bubble wrap: small, big and mega bubbles ----
+const WRAP_SIZES = ['Small', 'Big', 'Mega'], WRAP_MULT = [1, 1.75, 2.9];
+wrap.resize = function () {
+  this.w = Math.min(W * 0.88, 760); this.h = Math.min(H * 0.48, 440);
+  this.br = clamp(Math.min(this.w, this.h) / 14, 14, 30) * WRAP_MULT[topt.wrapSize];
+  this.build(false);
+};
+const baseWrapAt = wrap.popAt;
+wrap.popAt = function (x, y) {
+  const b = this.hit(x, y), fresh = b && !b.popped;
+  baseWrapAt.call(this, x, y);
+  if (!fresh || !b.popped || !topt.wrapSize) return;
+  const wx = this.cx() + b.x, wy = this.cy() + b.y;
+  shake(topt.wrapSize * 2); sparkle(wx, wy, 6 * topt.wrapSize, ['#ffffff', '#cfe8ff', '#e8f4ff'], 0.8 + topt.wrapSize * 0.3);
+  ripple(wx, wy, topt.wrapSize * 1.2, '180,220,255');
+  if (topt.wrapSize === 2) unlock('mega');
+};
+
+// ---- 🧪 Slime: crunchy foam beads, clicky fishbowl beads, or cute charms ----
+const SLIME_ADDS = ['No add-ins', 'Foam beads', 'Fishbowl beads', 'Charms'];
+const addins = Array.from({ length: 70 }, (_, i) => ({ seg: Math.random() * N, f: Math.sqrt(Math.random()) * 0.86, hue: Math.floor(rnd(0, 360)), s: rnd(0.8, 1.2), rot: rnd(0, TAU), k: i % 4 }));
+function drawSlimeAddins(b, c, r, t) {
+  const m = topt.slimeAdd;
+  if (!m) return;
+  addins.forEach((a, i) => {
+    const q = b.map(a.seg, a.f, c);
+    if (m === 1) {
+      const rr = r * 0.028 * a.s;
+      ctx.fillStyle = `hsl(${a.hue},85%,72%)`; ctx.beginPath(); ctx.arc(q.x, q.y, rr, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(q.x - rr * 0.35, q.y - rr * 0.35, rr * 0.35, 0, TAU); ctx.fill();
+    } else if (m === 2) {
+      const rr = r * 0.034 * a.s;
+      ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(q.x, q.y, rr, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(q.x - rr * 0.4, q.y - rr * 0.4, rr * 0.25, 0, TAU); ctx.fill();
+    } else if (i < 22) {
+      const rr = r * 0.05 * a.s;
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(a.rot + Math.sin(t * 0.5 + a.hue) * 0.1);
+      if (a.k === 0) { ctx.fillStyle = '#ff6fa8'; heart(0, 0, rr * 1.2); }
+      else if (a.k === 1) { ctx.fillStyle = '#ffd84a'; star(0, 0, rr * 1.1, 0); }
+      else if (a.k === 2) { // orange slice
+        ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#ffe2a8'; ctx.beginPath(); ctx.arc(0, 0, rr * 0.78, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#ffb347'; ctx.lineWidth = rr * 0.12;
+        ctx.beginPath(); for (let k = 0; k < 8; k++) { ctx.moveTo(0, 0); ctx.lineTo(Math.cos(k * TAU / 8) * rr * 0.78, Math.sin(k * TAU / 8) * rr * 0.78); } ctx.stroke();
+      } else { // little flower
+        ctx.fillStyle = '#ffffff';
+        for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(Math.cos(k * TAU / 5) * rr * 0.55, Math.sin(k * TAU / 5) * rr * 0.55, rr * 0.45, 0, TAU); ctx.fill(); }
+        ctx.fillStyle = '#ffd84a'; ctx.beginPath(); ctx.arc(0, 0, rr * 0.38, 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
+  });
+}
+let crunchAcc = 0, crunchTime = 0;
+const baseSlimeUpdate = slime.update, baseSlimeDown = slime.down;
+slime.update = function (dt, t, now) {
+  baseSlimeUpdate.call(this, dt, t, now);
+  const m = topt.slimeAdd;
+  if (!m || m === 3 || !drag.active || !live()) return;
+  crunchAcc += dt * (4 + this.body.energy() * 0.12 + this.body.squeeze * 10);
+  while (crunchAcc > 1) { crunchAcc--; m === 1 ? sfx.bead() : sfx.fishbowl(); }
+  if ((crunchTime += dt) > 3) unlock('crunch');
+};
+slime.down = function (x, y, id) {
+  const hit = baseSlimeDown.call(this, x, y, id);
+  if (hit && topt.slimeAdd && topt.slimeAdd < 3) for (let i = 0; i < 4; i++) setTimeout(() => topt.slimeAdd === 1 ? sfx.bead() : sfx.fishbowl(), i * 25);
+  return hit;
+};
+
+// ---- 🏖️ Kinetic sand: rainbow layers that show when you slice ----
+const LAYER_COLS = ['#ff9cc0', '#ffc18f', '#ffe38a', '#a6eda0', '#8fd3ff', '#c3a6ff'];
+function fillSandRect(x, y, w, h) {
+  const pat = sandPattern(sand.color.c);
+  if (!topt.sandLayers) { ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fillStyle = sand.color.c; ctx.fill(); ctx.fillStyle = pat; ctx.fill(); return; }
+  const n = LAYER_COLS.length, lh = h / n;
+  for (let i = 0; i < n; i++) { ctx.fillStyle = LAYER_COLS[i]; ctx.fillRect(x, y + i * lh - 0.5, w, lh + 1); }
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fillStyle = pat; ctx.fill();
+}
+const layerColor = (ly, bh) => topt.sandLayers ? LAYER_COLS[clamp(Math.floor((bh + ly) / bh * LAYER_COLS.length), 0, LAYER_COLS.length - 1)] : null;
+const baseSandSlice = sand.slice;
+sand.slice = function (cx) { baseSandSlice.call(this, cx); if (topt.sandLayers) unlock('layers'); };
+
+// ---- 🌀 Spinner: sparks, an RPM gauge, and a Plasma style with lightning ----
+SPINNER_STYLES.push('Plasma');
+const spin = { sparks: [], acc: 0, zapT: 0 };
+const baseSpinUpdate = spinner.update, baseSpinDraw = spinner.draw;
+spinner.update = function (dt, t, now) {
+  baseSpinUpdate.call(this, dt, t, now);
+  const rps = Math.abs(this.w) / TAU, rpm = rps * 60, plasma = SPINNER_STYLES[this.style] === 'Plasma';
+  if (rps > 6) {
+    spin.acc += dt * (rps - 6) * 5;
+    while (spin.acc > 1) {
+      spin.acc--;
+      const i = Math.floor(Math.random() * 3), a = this.ang + i * TAU / 3, rr = this.R * 0.98;
+      const x = this.cx + Math.cos(a) * rr, y = this.cy + Math.sin(a) * rr, tv = this.w * rr * 0.35;
+      spin.sparks.push({ x, y, vx: -Math.sin(a) * tv + Math.cos(a) * rnd(40, 160), vy: Math.cos(a) * tv + Math.sin(a) * rnd(40, 160), life: 1, hue: plasma ? rnd(260, 300) : rnd(25, 55) });
+      if (Math.random() < 0.15) sfx.spark(clamp((x / W) * 2 - 1, -1, 1) * 0.8);
+    }
+  }
+  for (let i = spin.sparks.length - 1; i >= 0; i--) {
+    const s = spin.sparks[i];
+    s.vy += 500 * dt; s.x += s.vx * dt; s.y += s.vy * dt;
+    if ((s.life -= dt * 2.2) <= 0) spin.sparks.splice(i, 1);
+  }
+  if (plasma && rps > 1.5 && (spin.zapT -= dt) <= 0) { spin.zapT = rnd(0.05, 0.2) / (1 + rps / 10); sfx.zap(rnd(-0.5, 0.5)); }
+  if (plasma && rpm > 1000) unlock('plasma');
+};
+spinner.draw = function (t) {
+  const { R, cx, cy } = this, rps = Math.abs(this.w) / TAU, rpm = rps * 60, k = Math.min(1, rpm / 1500);
+  if (rpm > 1100) { // overdrive aura
+    const a = Math.min(1, (rpm - 1100) / 400), h = (t * 200) % 360;
+    const g = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.6);
+    g.addColorStop(0, `hsla(${h},100%,65%,${0.35 * a})`); g.addColorStop(1, `hsla(${(h + 60) % 360},100%,65%,0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 1.6, 0, TAU); ctx.fill();
+  }
+  baseSpinDraw.call(this, t);
+  // gauge ring
+  const gr = R * 1.3, a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = bg.night > 0.5 ? 'rgba(255,255,255,.12)' : 'rgba(110,90,160,.15)'; ctx.lineWidth = R * 0.05;
+  ctx.beginPath(); ctx.arc(cx, cy, gr, a0, a1); ctx.stroke();
+  if (k > 0.003) {
+    ctx.strokeStyle = `hsl(${130 - 130 * k},90%,58%)`;
+    ctx.beginPath(); ctx.arc(cx, cy, gr, a0, a0 + (a1 - a0) * k); ctx.stroke();
+  }
+  // lightning between the arms
+  if (SPINNER_STYLES[this.style] === 'Plasma' && rps > 1.5) {
+    const lobes = [0, 1, 2].map(i => { const a = this.ang + i * TAU / 3; return [cx + Math.cos(a) * R * 0.62, cy + Math.sin(a) * R * 0.62]; });
+    const bolt = (p, q) => {
+      const pts = [p];
+      for (let s = 1; s < 8; s++) { const u = s / 8; pts.push([p[0] + (q[0] - p[0]) * u + rnd(-1, 1) * R * 0.07, p[1] + (q[1] - p[1]) * u + rnd(-1, 1) * R * 0.07]); }
+      pts.push(q);
+      for (const [w, col] of [[5, 'rgba(180,140,255,.55)'], [1.6, '#ffffff']]) {
+        ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+      }
+    };
+    ctx.save(); ctx.shadowColor = '#a57bff'; ctx.shadowBlur = 16; ctx.globalAlpha = Math.min(1, rps / 6);
+    for (let i = 0; i < 3; i++) if (Math.random() < 0.85) bolt(lobes[i], lobes[(i + 1) % 3]);
+    if (rps > 6) for (const l of lobes) if (Math.random() < 0.5) bolt([cx, cy], l);
+    ctx.restore();
+  }
+  for (const s of spin.sparks) {
+    ctx.strokeStyle = `hsla(${s.hue},100%,${60 + s.life * 25}%,${s.life})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - s.vx * 0.02, s.y - s.vy * 0.02); ctx.stroke();
+  }
+};
+
+// ---- ⌨️ Click board: RGB lighting ----
+const rgb = { waves: [], t: 0 };
+board.sub = 'thocky keys with RGB · left switch = light show · dial = colour · slider = brightness · big button = rainbow';
+const dialHue = () => { const d = board.els.find(e => e.type === 'dial'); return d ? ((d.ang * 180 / Math.PI + 300) % 360 + 360) % 360 : 300; };
+const baseBoardPress = board.press, baseBoardUpdate = board.update, baseDrawKey = board.draw_key;
+board.press = function (e, x, y) {
+  baseBoardPress.call(this, e, x, y);
+  if (e.type === 'key') rgb.waves.push({ x: e.x, y: e.y, t: 0, hue: dialHue(), big: false });
+  else if (e.type === 'arcade') { rgb.waves.push({ x: e.x, y: e.y, t: 0, big: true }); sfx.sweep(); confetti(this.cx + e.x, this.cy + e.y, 30); unlock('rgb'); }
+};
+board.update = function (dt, t, now) {
+  baseBoardUpdate.call(this, dt, t, now);
+  rgb.t += dt;
+  for (let i = rgb.waves.length - 1; i >= 0; i--) if ((rgb.waves[i].t += dt) > (rgb.waves[i].big ? 2.2 : 1.3)) rgb.waves.splice(i, 1);
+};
+function keyLight(e) {
+  let L = 0, hue = dialHue();
+  const show = board.els.find(x => x.type === 'toggle');
+  if (show && show.on) { L = 0.4 + 0.2 * Math.sin(rgb.t * 2 + e.x * 0.02); hue = (rgb.t * 60 + e.x * 0.4 + e.y * 0.2) % 360; }
+  for (const w of rgb.waves) {
+    const d = Math.hypot(e.x - w.x, e.y - w.y), life = w.big ? 2.2 : 1.3;
+    const front = w.t * board.bw * (w.big ? 0.7 : 1.1), width = e.s * (w.big ? 1.4 : 0.7);
+    const k = Math.exp(-((d - front) ** 2) / (2 * width * width)) * (1 - w.t / life);
+    if (k > L) { L = k; hue = w.big ? (d * 0.8 + w.t * 200) % 360 : w.hue; }
+  }
+  const slider = board.els.find(x => x.type === 'slider');
+  return { L: L * (0.6 + 0.6 * (slider ? slider.v : 1)) * (1 + bg.night * 0.4), hue };
+}
+board.draw_key = function (e) {
+  const { L, hue } = keyLight(e);
+  if (L > 0.02) { // underglow
+    const r = e.s * 0.95, g = ctx.createRadialGradient(e.x, e.y, e.s * 0.2, e.x, e.y, r);
+    g.addColorStop(0, `hsla(${hue},100%,62%,${Math.min(0.9, L)})`); g.addColorStop(1, `hsla(${hue},100%,62%,0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, TAU); ctx.fill();
+  }
+  baseDrawKey.call(this, e);
+  if (L > 0.02) { // light shining up through the keycap
+    const s = e.s, top = s * 0.76, d = e.dy * s * 0.07;
+    ctx.fillStyle = `hsla(${hue},100%,68%,${Math.min(0.6, L * 0.6)})`;
+    ctx.beginPath(); ctx.roundRect(e.x - top / 2, e.y - top / 2 - s * 0.07 + d, top, top, s * 0.13); ctx.fill();
+  }
+};
+
+// ---- the new buttons ----
+function optToggle(id, key, after) {
+  const b = document.getElementById(id), sync = () => b.classList.toggle('on', !!topt[key]);
+  sync();
+  b.onclick = () => { topt[key] = !topt[key]; saveTopt(); sync(); initAudio(); if (after) after(); };
+}
+function optCycle(id, key, names, after) {
+  const b = document.getElementById(id), sync = () => { b.textContent = names[topt[key] % names.length]; b.classList.toggle('on', topt[key] > 0); };
+  sync();
+  b.onclick = () => { topt[key] = (topt[key] + 1) % names.length; saveTopt(); sync(); initAudio(); if (after) after(); };
+}
+optToggle('faceBtn', 'face', () => { sfx.plop(); sparkle(needoh.body.hx, needoh.body.hy, 10); });
+optToggle('meshBtn', 'mesh', () => { sfx.grab(); });
+optCycle('stampBtn', 'stamp', STAMPS.map(([n, e]) => `${e} ${n}`), () => sfx.stamp());
+optCycle('wrapSizeBtn', 'wrapSize', WRAP_SIZES, () => { wrap.resize(); wrap.build(true); sfx.crinkle(); });
+optCycle('slimeAddBtn', 'slimeAdd', SLIME_ADDS, () => { sfx.slimeLet(); for (const q of slime.body.p) q.vy += rnd(-120, 120); });
+optToggle('sandLayerBtn', 'sandLayers', () => sand.newBlock(false));
+document.getElementById('seedsBtn').onclick = () => { initAudio(); orbeez.addSeeds(); };
 
 // ---------- toy switching ----------
 const TOYS = [needoh, popit, butter, dumpling, orbeez, wrap, slime, sand, spinner, board];
