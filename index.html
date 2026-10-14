@@ -145,6 +145,63 @@
     .title { font-size: 18px; }
     .sub { display: none; }
   }
+
+  /* level chip */
+  .lvl { position: relative; overflow: hidden; font-weight: 700; }
+  .lvl::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--p, 0%);
+    background: linear-gradient(90deg, #ff8fc8, #ffd36e, #8fe3ff); transition: width .4s; }
+
+  /* progress panel */
+  .panel h3 { font-size: 15px; margin: 18px 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  .panel h3 small { font-weight: 400; font-size: 12px; opacity: .6; }
+  .lvl-head { display: flex; justify-content: space-between; font-weight: 700; margin-top: 6px; }
+  .lvl-head span:last-child { font-weight: 400; opacity: .65; font-size: 13px; }
+  .xpbar { height: 12px; border-radius: 6px; background: #f1ebf8; overflow: hidden; margin-top: 6px; }
+  .xpbar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #ff8fc8, #ffd36e, #8fe3ff); transition: width .5s; }
+  .quest { display: flex; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid #f1ebf8; }
+  .quest .qi { font-size: 20px; }
+  .quest .qt { flex: 1; }
+  .quest b { font-size: 13px; font-weight: 600; display: block; }
+  .quest .qbar { display: block; height: 6px; border-radius: 3px; background: #f1ebf8; overflow: hidden; margin-top: 5px; }
+  .quest .qbar i { display: block; height: 100%; background: #a77bff; border-radius: 3px; }
+  .quest .qx { font-size: 12px; opacity: .65; white-space: nowrap; }
+  .quest.done b { text-decoration: line-through; opacity: .55; }
+  .quest.done .qbar i { background: #6fdc6f; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .card { border: 2px solid transparent; background: #f7f3fc; border-radius: 14px; padding: 6px; cursor: pointer;
+    font: inherit; color: inherit; display: flex; flex-direction: column; gap: 4px; align-items: center; transition: transform .15s; }
+  .card:hover:not(:disabled) { transform: translateY(-2px); }
+  .card.on { border-color: #a77bff; background: #f1e9ff; }
+  .card .sw { width: 100%; height: 52px; border-radius: 10px; }
+  .card .nm { font-size: 12px; font-weight: 600; }
+  .card .ic { font-size: 24px; height: 32px; display: grid; place-items: center; }
+  .card.locked { cursor: default; opacity: .55; }
+  .card.locked .sw { filter: grayscale(.8) blur(1px); }
+  .trails { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+
+  /* Pop Rush result card */
+  .rush-card { text-align: center; padding: 26px 22px 22px; width: min(340px, 100%); }
+  .rush-title { font-weight: 800; font-size: 18px; letter-spacing: .5px; }
+  .rush-score { font-size: 72px; font-weight: 900; line-height: 1.1; margin: 8px 0 2px;
+    background: linear-gradient(135deg, #ffb84d, #ff6fa8, #a77bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .rush-best { font-weight: 800; color: #e0559a; min-height: 20px; }
+  .rush-meta { font-size: 13px; opacity: .65; margin: 6px 0 16px; }
+  .rush-btns { display: flex; gap: 8px; justify-content: center; }
+  .rush-btns .tog { font-size: 15px; padding: 10px 18px; }
+  .rush-card .tog.on { background: #6b3fb0; color: #fff; }
+
+  /* zen mode & camera flash */
+  .hud, .toys, .bar { transition: opacity .6s; }
+  body.zen .hud, body.zen .toys, body.zen .bar, body.zen .hint, body.zen .toasts { opacity: 0; pointer-events: none !important; }
+  body.zen .hud * { pointer-events: none !important; }
+  .zen-exit { position: fixed; top: 12px; right: 12px; display: none; border: 0; border-radius: 999px; padding: 6px 12px;
+    font: inherit; font-size: 12px; cursor: pointer; background: var(--chip); color: var(--ink); opacity: .35; transition: opacity .3s; z-index: 6; }
+  .zen-exit:hover { opacity: 1; }
+  body.zen .zen-exit { display: block; }
+  body.rushing .toasts { top: auto; bottom: 96px; flex-direction: column-reverse; }
+  .flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 20; }
+  .flash.go { animation: flash .6s ease-out; }
+  @keyframes flash { from { opacity: .9; } to { opacity: 0; } }
 </style>
 </head>
 <body>
@@ -155,6 +212,7 @@
     <div class="sub" id="sub"></div>
   </div>
   <div class="right">
+    <button class="count chip-btn lvl" id="lvlBtn" title="Level, quests, scenes & trails">⭐ 1</button>
     <div class="count" id="count">0 squishes</div>
     <button class="count chip-btn" id="trophyBtn" title="Achievements">🏆 0</button>
   </div>
@@ -167,6 +225,32 @@
     <div id="achList"></div>
   </div>
 </div>
+<div class="panel-wrap" id="progPanel" hidden>
+  <div class="panel" role="dialog" aria-label="Progress">
+    <h2>⭐ Your Squish World <button id="progClose" aria-label="Close">✕</button></h2>
+    <div class="lvl-head"><span id="pLvl">Level 1</span><span id="pXp"></span></div>
+    <div class="xpbar"><i id="pBar"></i></div>
+    <h3>🎯 Daily quests <small id="qReset"></small></h3>
+    <div id="questList"></div>
+    <h3>🎨 Scenes</h3>
+    <div class="grid" id="sceneGrid"></div>
+    <h3>✨ Cursor trails</h3>
+    <div class="grid trails" id="trailGrid"></div>
+    <h3>🏅 Records</h3>
+    <div class="meta" id="records"></div>
+  </div>
+</div>
+<div class="panel-wrap" id="rushCard" hidden>
+  <div class="panel rush-card" role="dialog" aria-label="Pop Rush result">
+    <div class="rush-title">⚡ POP RUSH</div>
+    <div class="rush-score" id="rushScore">0</div>
+    <div class="rush-best" id="rushBest"></div>
+    <div class="rush-meta" id="rushMeta"></div>
+    <div class="rush-btns"><button class="tog on" id="rushAgain">⚡ Play again</button><button class="tog" id="rushClose">Done</button></div>
+  </div>
+</div>
+<button class="zen-exit" id="zenExit">✕ leave zen</button>
+<div class="flash" id="flash"></div>
 <div class="toys" id="toys"></div>
 <div class="hint" id="hint">🎧 headphones recommended</div>
 <div class="bar" id="bar">
@@ -177,6 +261,7 @@
     <div class="sep"></div>
   </div>
   <div class="opts" id="opt-popit" hidden>
+    <button class="tog" id="rushBtn" title="30-second Pop Rush (G)">⚡ Rush</button>
     <button class="tog" id="flipBtn">🔄 Flip</button>
     <button class="tog" id="shapeBtn">Square</button>
     <div class="sep"></div>
@@ -213,6 +298,8 @@
   <button class="tog" id="musicBtn" title="Lo-fi music (M)">🎵 Chill</button>
   <button class="tog" id="rainBtn" title="Rain (R)">🌧</button>
   <button class="tog" id="nightBtn" title="Night mode (N)">🌙</button>
+  <button class="tog" id="zenBtn" title="Zen mode: hide everything (Z)">🧘</button>
+  <button class="tog" id="photoBtn" title="Save a photo (P)">📸</button>
   <button class="tog on" id="sndBtn">🔊</button>
 </div>
 
@@ -745,6 +832,7 @@ function unlock(id) {
   unlocked.add(id);
   safeSet('needoh-ach', JSON.stringify([...unlocked]));
   updateTrophy();
+  gainXP(40);
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = `<span class="big">${a[1]}</span><span><small>Achievement unlocked</small><b></b></span>`;
@@ -756,6 +844,9 @@ function unlock(id) {
 }
 function addSquish() {
   squishes++; updateCount(); safeSet('needoh-squishes', squishes);
+  gainXP(1); questEvent('squish');
+  if (music.on) questEvent('chill');
+  if (bg.nightOn) questEvent('night');
   unlock('first');
   if (squishes >= 100) unlock('s100');
   if (squishes >= 1000) unlock('s1000');
@@ -809,6 +900,7 @@ function comboHit(x, y) {
   combo.t = 1;
   combo.pulse = 1;
   if (combo.n > stats.best) { stats.best = combo.n; saveStats(); }
+  questEvent('pop'); questEvent('combo', combo.n);
   if (combo.n >= 25) unlock('combo25');
   if (combo.n >= 100) unlock('combo100');
   if (combo.n % 10 === 0) {
@@ -867,7 +959,7 @@ function drawFx() {
     ctx.fillStyle = t.color; ctx.fillText(t.text, t.x, t.y);
   }
   ctx.globalAlpha = 1;
-  if (combo.n >= 3) {
+  if (combo.n >= 3 && rush.phase === 'off') {
     const s = 1 + combo.pulse * 0.25 + Math.min(combo.n, 100) * 0.004;
     ctx.save(); ctx.translate(W / 2, Math.min(170, H * 0.2)); ctx.scale(s, s);
     ctx.globalAlpha = Math.min(1, combo.t * 3);
@@ -916,6 +1008,7 @@ function drawBackground(t, dt) {
     }
     ctx.globalAlpha = 1;
   }
+  drawScene(t, dt);
   // drifting bokeh, with a little parallax toward the pointer
   const px = W ? (pointer.x / W - 0.5) : 0, py = H ? (pointer.y / H - 0.5) : 0;
   for (const o of orbs) {
@@ -1764,7 +1857,7 @@ const popit = {
     this.flip = 0; this.flipped = false; this.flipQueued = false;
     sfx.flip(); buzz(20);
     confetti(this.cx(), this.cy() + this.size * 0.2, 70); shake(5);
-    stats.flips++; saveStats();
+    stats.flips++; saveStats(); questEvent('flip');
     unlock('flip'); if (stats.flips >= 10) unlock('flip10');
   },
   down(x, y, id) {
@@ -2922,6 +3015,7 @@ function selectToy(t, announce) {
   safeSet('needoh-toy', t.name);
   if (!stats.tried.includes(t.name)) { stats.tried.push(t.name); saveStats(); }
   if (TOYS.every(x => stats.tried.includes(x.name))) unlock('all');
+  questEvent('toy', t.name);
 }
 
 // ---------- input ----------
@@ -3009,7 +3103,7 @@ rainBtn.onclick = () => { setRain(!music.rain); rainBtn.classList.toggle('on', m
 const nightBtn = document.getElementById('nightBtn');
 function setNight(on) {
   bg.nightOn = on;
-  document.body.classList.toggle('night', on);
+  applyInk();
   nightBtn.classList.toggle('on', on);
   nightBtn.textContent = on ? '☀️' : '🌙';
   safeSet('needoh-night', on ? '1' : '');
@@ -3056,6 +3150,670 @@ for (const [id, get, set, key] of [['butterColIn', () => butterCol, v => { butte
   input.oninput = () => { set(input.value); label.style.background = input.value; safeSet(key, input.value); };
 }
 
+Object.assign(sfx, {
+  // triumphant rising arpeggio, a shimmer and a soft boom
+  levelUp() {
+    [60, 64, 67, 72, 76, 79, 84].forEach((n, i) => {
+      const f = mtof(n);
+      tone(0.5, f, f, 0.16, { type: 'triangle', attack: 0.004, delay: i * 0.06, pan: -0.6 + i * 0.2 });
+      tone(0.6, f * 2, f * 2, 0.05, { attack: 0.004, delay: i * 0.06 });
+    });
+    noise(0.9, { type: 'highpass', f0: 3000, f1: 9000, q: 0.7, vol: 0.12, attack: 0.25, delay: 0.3 });
+    tone(0.6, 90, 40, 0.4, { attack: 0.01, wet: 0.4 });
+    [72, 76, 79, 84].forEach(n => tone(1.4, mtof(n), mtof(n), 0.07, { type: 'triangle', attack: 0.02, delay: 0.45 }));
+  },
+  gold() {
+    const f = mtof(88);
+    tone(0.6, f, f, 0.2, { attack: 0.002 });
+    tone(0.45, f * 1.5, f * 1.5, 0.1, { attack: 0.002, delay: 0.05 });
+    tone(0.45, f * 2, f * 2, 0.07, { attack: 0.002, delay: 0.1 });
+  },
+  timeBonus() { tone(0.18, 600, 1200, 0.25); tone(0.2, 900, 1800, 0.16, { delay: 0.08 }); },
+  sparkleIn() { tone(0.12, 1500, 2300, 0.05, { attack: 0.01 }); },
+  beep(go) {
+    if (go) { tone(0.6, 880, 880, 0.3, { type: 'triangle' }); tone(0.6, 1320, 1320, 0.16, { type: 'triangle' }); tone(0.6, 1760, 1760, 0.08); }
+    else tone(0.2, 520, 520, 0.3, { type: 'triangle' });
+  },
+  tick() { tone(0.05, 1800, 1700, 0.2, { type: 'triangle', attack: 0.001 }); },
+  rushEnd() {
+    [67, 72, 76, 79].forEach((n, i) => tone(0.7, mtof(n), mtof(n), 0.18, { type: 'triangle', delay: i * 0.09 }));
+    noise(0.6, { type: 'bandpass', f0: 600, f1: 3000, q: 0.7, vol: 0.18, attack: 0.15 });
+  },
+  shutter() {
+    noise(0.025, { type: 'highpass', f0: 3000, q: 0.7, vol: 0.5, attack: 0.001, wet: 0.2 });
+    noise(0.05, { type: 'bandpass', f0: 1400, f1: 900, q: 1, vol: 0.35, attack: 0.001, delay: 0.07, wet: 0.2 });
+    tone(0.04, 2200, 1800, 0.08, { delay: 0.07 });
+  },
+});
+
+// ---------- progression: XP & levels, scenes, cursor trails, daily quests ----------
+const prog = Object.assign({ xp: 0, level: 1, scene: 'pastel', trail: 'none', rushBest: 0, scenesTried: ['pastel'] },
+  (() => { try { return JSON.parse(safeGet('needoh-prog') || 'null') || { fresh: true }; } catch { return { fresh: true }; } })());
+let progDirty = false;
+const saveProg = () => { progDirty = false; safeSet('needoh-prog', JSON.stringify(prog)); safeSet('needoh-quests', JSON.stringify(qs)); };
+setInterval(() => { if (progDirty) saveProg(); }, 2000);
+addEventListener('pagehide', () => { if (progDirty) saveProg(); });
+const xpNeed = l => 50 + (l - 1) * 40;
+
+const SCENES = [
+  { id: 'pastel', name: 'Pastel', lvl: 1, swatch: 'linear-gradient(135deg,#fde8f1,#e6e9ff)' },
+  { id: 'sunset', name: 'Sunset', lvl: 3, swatch: 'linear-gradient(#ff9a8b,#ffc3a0 55%,#ffe7c2)' },
+  { id: 'ocean', name: 'Ocean', lvl: 5, swatch: 'linear-gradient(#a9ebff,#2f80cf)' },
+  { id: 'sakura', name: 'Sakura', lvl: 7, swatch: 'radial-gradient(circle at 30% 30%,#fff,#ffd3e6 60%,#ffb3d1)' },
+  { id: 'space', name: 'Space', lvl: 10, swatch: 'radial-gradient(circle at 70% 30%,#6b4bd6,#1a1048 60%,#07061a)', dark: true },
+  { id: 'aurora', name: 'Aurora', lvl: 13, swatch: 'linear-gradient(160deg,#061a2c,#0f5a5a 55%,#47e0a0)', dark: true },
+  { id: 'rainbow', name: 'Rainbow', lvl: 16, swatch: 'linear-gradient(90deg,#ff8fa3,#ffd36e,#8ff0a4,#7fd3ff,#c6a2ff)' },
+];
+const TRAILS = [
+  { id: 'none', name: 'None', icon: '∅', lvl: 1 },
+  { id: 'sparkles', name: 'Sparkles', icon: '✨', lvl: 2 },
+  { id: 'hearts', name: 'Hearts', icon: '💗', lvl: 4 },
+  { id: 'bubbles', name: 'Bubbles', icon: '🫧', lvl: 6 },
+  { id: 'rainbow', name: 'Rainbow', icon: '🌈', lvl: 9 },
+  { id: 'fire', name: 'Fire', icon: '🔥', lvl: 12 },
+];
+ACH.push(
+  ['lvl5', '⭐', 'Rising Star', 'Reach level 5'],
+  ['lvl10', '🌟', 'Superstar', 'Reach level 10'],
+  ['quest', '🎯', 'Quester', 'Complete a daily quest'],
+  ['scene', '🎨', 'World Traveler', 'Visit 4 different scenes'],
+  ['rush100', '⚡', 'Speed Popper', 'Score 100 in Pop Rush'],
+  ['rush300', '🏎️', 'Pop Rush Pro', 'Score 300 in Pop Rush'],
+  ['zen', '🧘', 'Inner Peace', 'Enter zen mode'],
+  ['photo', '📸', 'Say Cheese', 'Take a photo of a toy'],
+);
+
+function toast(icon, small, big) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = '<span class="big"></span><span><small></small><b></b></span>';
+  el.querySelector('.big').textContent = icon;
+  el.querySelector('small').textContent = small;
+  el.querySelector('b').textContent = big;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3400);
+}
+
+const lvlBtn = document.getElementById('lvlBtn');
+function updateLvl() {
+  lvlBtn.textContent = `⭐ ${prog.level}`;
+  lvlBtn.style.setProperty('--p', `${Math.round(prog.xp / xpNeed(prog.level) * 100)}%`);
+}
+function gainXP(n) {
+  prog.xp += n;
+  while (prog.xp >= xpNeed(prog.level)) { prog.xp -= xpNeed(prog.level); prog.level++; levelUp(prog.level); }
+  updateLvl(); progDirty = true;
+}
+let banner = null;
+function levelUp(l) {
+  banner = { t: 0, l };
+  sfx.levelUp(); shake(6); buzz([30, 40, 60]);
+  confetti(W * 0.15, H, 50); confetti(W * 0.85, H, 50);
+  for (const s of SCENES) if (s.lvl === l) setTimeout(() => toast('🎨', 'New scene unlocked — tap ⭐ to visit', s.name), 900);
+  for (const tr of TRAILS) if (tr.lvl === l) { prog.trail = tr.id; setTimeout(() => toast(tr.icon, 'New cursor trail', tr.name), 900); }
+  if (l >= 5) unlock('lvl5');
+  if (l >= 10) unlock('lvl10');
+}
+// players from before levels existed get credit for what they've already done
+if (prog.fresh) {
+  delete prog.fresh;
+  const xp = squishes + unlocked.size * 40;
+  if (xp > 0) {
+    prog.xp = xp;
+    while (prog.xp >= xpNeed(prog.level)) { prog.xp -= xpNeed(prog.level); prog.level++; }
+    prog.trail = [...TRAILS].reverse().find(t => t.lvl <= prog.level).id;
+    setTimeout(() => toast('⭐', `Welcome back! Your ${squishes.toLocaleString()} squishes count`, `You start at level ${prog.level}`), 1200);
+  }
+  progDirty = true;
+}
+
+// ---------- daily quests ----------
+const QUESTS = [
+  { id: 'pops', text: 'Pop, poke or click 150 things', goal: 150, ev: 'pop', xp: 120 },
+  { id: 'squish', text: 'Squish 200 times', goal: 200, ev: 'squish', xp: 120 },
+  { id: 'toys', text: 'Play with 4 different toys', goal: 4, ev: 'toy', xp: 100 },
+  { id: 'combo', text: 'Hit a ×20 combo', goal: 20, ev: 'combo', xp: 150 },
+  { id: 'rush', text: 'Score 150 in Pop Rush', goal: 150, ev: 'rush', xp: 200 },
+  { id: 'flip', text: 'Flip the Pop It 3 times', goal: 3, ev: 'flip', xp: 100 },
+  { id: 'chill', text: 'Squish 60 times with chill music on', goal: 60, ev: 'chill', xp: 120 },
+  { id: 'night', text: 'Squish 60 times in night mode', goal: 60, ev: 'night', xp: 120 },
+  { id: 'zen', text: 'Spend 2 minutes in zen mode', goal: 120, ev: 'zen', xp: 150 },
+];
+const localDay = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+let qs = (() => { try { return JSON.parse(safeGet('needoh-quests') || 'null'); } catch { return null; } })();
+function refreshQuests() {
+  const day = localDay();
+  if (qs && qs.day === day) return;
+  // the same three quests for everyone on a given day
+  let h = 2166136261;
+  for (const c of day) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  const pool = QUESTS.map(q => q.id), ids = [];
+  while (ids.length < 3) { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; ids.push(pool.splice(h % pool.length, 1)[0]); }
+  qs = { day, ids, prog: {}, done: [], seen: [] };
+  progDirty = true;
+}
+function questEvent(ev, val = 1) {
+  refreshQuests();
+  for (const id of qs.ids) {
+    const q = QUESTS.find(x => x.id === id);
+    if (q.ev !== ev || qs.done.includes(id)) continue;
+    if (ev === 'toy') { if (!qs.seen.includes(val)) qs.seen.push(val); qs.prog[id] = qs.seen.length; }
+    else if (ev === 'combo' || ev === 'rush') qs.prog[id] = Math.max(qs.prog[id] || 0, val);
+    else qs.prog[id] = (qs.prog[id] || 0) + val;
+    progDirty = true;
+    if (qs.prog[id] >= q.goal) {
+      qs.done.push(id);
+      toast('🎯', `Daily quest complete · +${q.xp} XP`, q.text);
+      sfx.chime(4); confetti(W / 2, 140, 40);
+      gainXP(q.xp); unlock('quest');
+    }
+  }
+}
+refreshQuests();
+
+// ---------- scenes: whole worlds behind the toys ----------
+let sceneFrom = prog.scene, sceneMix = 1;
+const sceneData = {};
+const sd = (id, make) => sceneData[id] || (sceneData[id] = make());
+function applyInk() {
+  const dark = (SCENES.find(s => s.id === prog.scene) || {}).dark;
+  document.body.classList.toggle('night', bg.nightOn || !!dark);
+}
+function setScene(id) {
+  if (id === prog.scene) return;
+  sceneFrom = prog.scene; prog.scene = id; sceneMix = 0;
+  if (!prog.scenesTried.includes(id)) prog.scenesTried.push(id);
+  if (prog.scenesTried.length >= 4) unlock('scene');
+  progDirty = true; applyInk();
+  initAudio(); sfx.appear();
+}
+function hills(base, amp, freq, ph, color) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= W + 20; x += 20) ctx.lineTo(x, base - Math.sin(x * freq + ph) * amp - Math.sin(x * freq * 2.3 + ph * 1.7) * amp * 0.35);
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+}
+function paintScene(id, t, dt, alpha) {
+  if (alpha <= 0) return;
+  ctx.save(); ctx.globalAlpha = alpha;
+  const m = Math.min(W, H);
+  if (id === 'sunset') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#ff9a8b'); g.addColorStop(0.45, '#ffb89a'); g.addColorStop(0.75, '#ffe3c4'); g.addColorStop(1, '#ffd0d8');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const sx = W * 0.5, sy = H * 0.74 + Math.sin(t * 0.2) * 6, sr = m * 0.17;
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 2.6);
+    sg.addColorStop(0, '#fff7da'); sg.addColorStop(0.35, '#ffd27f'); sg.addColorStop(0.42, 'rgba(255,190,120,.55)'); sg.addColorStop(1, 'rgba(255,170,130,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, sr * 2.6, 0, TAU); ctx.fill();
+    const clouds = sd('clouds', () => Array.from({ length: 6 }, () => ({ x: Math.random(), y: rnd(0.08, 0.4), s: rnd(0.6, 1.4), sp: rnd(0.004, 0.012) })));
+    ctx.fillStyle = 'rgba(255,238,232,.5)';
+    for (const c of clouds) {
+      c.x += c.sp * dt; if (c.x > 1.2) c.x = -0.2;
+      const x = c.x * W, y = c.y * H, r = 40 * c.s;
+      for (const [ex, ey, rx, ry] of [[0, 0, 2, 0.6], [0.7, -0.35, 1, 0.6], [-0.8, -0.2, 0.8, 0.5]]) {
+        ctx.beginPath(); ctx.ellipse(x + ex * r, y + ey * r, rx * r, ry * r, 0, 0, TAU); ctx.fill();
+      }
+    }
+    hills(H * 0.8, 30, 0.004, 1, 'rgba(232,140,160,.7)');
+    hills(H * 0.86, 24, 0.006, 3, 'rgba(190,100,150,.75)');
+    hills(H * 0.93, 18, 0.009, 5, 'rgba(140,70,130,.8)');
+  } else if (id === 'ocean') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#b5ecff'); g.addColorStop(0.5, '#4aa3e0'); g.addColorStop(1, '#1f5fa8');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // god rays
+    for (let i = 0; i < 6; i++) {
+      const x = W * (0.1 + i * 0.17) + Math.sin(t * 0.3 + i) * 40, w = 60 + (i % 3) * 30, a = 0.1 + 0.06 * Math.sin(t * 0.7 + i * 2);
+      const rg = ctx.createLinearGradient(0, 0, 0, H * 0.9);
+      rg.addColorStop(0, `rgba(255,255,255,${a})`); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.moveTo(x - w * 0.3, 0); ctx.lineTo(x + w * 0.3, 0); ctx.lineTo(x + w * 1.6 + 80, H * 0.9); ctx.lineTo(x + w * 0.4 + 80, H * 0.9); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(243,220,174,.55)';
+    ctx.beginPath(); ctx.ellipse(W / 2, H + 20, W * 0.8, 70, 0, 0, TAU); ctx.fill();
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 12; i++) {
+      const x = (i + 0.5) / 12 * W + Math.sin(i * 7) * 30, h = 80 + (i * 37 % 90), sw = Math.sin(t * 0.9 + i) * 18;
+      ctx.strokeStyle = i % 2 ? 'rgba(40,160,120,.55)' : 'rgba(60,190,140,.45)'; ctx.lineWidth = 9 + (i % 3) * 3;
+      ctx.beginPath(); ctx.moveTo(x, H + 5); ctx.quadraticCurveTo(x + sw, H - h * 0.5, x + sw * 1.8, H - h); ctx.stroke();
+    }
+    const bub = sd('bubbles', () => Array.from({ length: 40 }, () => ({ x: Math.random(), y: Math.random(), r: rnd(2, 9), sp: rnd(0.04, 0.12), ph: Math.random() * TAU })));
+    ctx.lineWidth = 1.5;
+    for (const b of bub) {
+      b.y -= b.sp * dt; if (b.y < -0.05) { b.y = 1.05; b.x = Math.random(); }
+      const x = b.x * W + Math.sin(t * 2 + b.ph) * 8, y = b.y * H;
+      ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(x, y, b.r, 0, TAU); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(x - b.r * 0.35, y - b.r * 0.35, b.r * 0.25, 0, TAU); ctx.fill();
+    }
+  } else if (id === 'sakura') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#fff3f8'); g.addColorStop(1, '#ffd6e6');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    hills(H * 0.9, 20, 0.005, 2, 'rgba(255,190,215,.6)');
+    // a blossoming branch reaching in from the corner
+    ctx.strokeStyle = 'rgba(110,70,80,.75)'; ctx.lineCap = 'round';
+    const br = [[0, 120, 0.28 * W, 190, 14], [0.12 * W, 158, 0.2 * W, 110, 6], [0.2 * W, 178, 0.36 * W, 150, 7], [0.26 * W, 186, 0.3 * W, 250, 5]];
+    for (const [x0, y0, x1, y1, w] of br) { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2, Math.min(y0, y1) - 10, x1, y1); ctx.stroke(); }
+    const blos = sd('blossoms', () => Array.from({ length: 26 }, (_, i) => ({ k: i % br.length, f: Math.random(), r: rnd(6, 13), dx: rnd(-14, 14), dy: rnd(-14, 14) })));
+    for (const b of blos) {
+      const [x0, y0, x1, y1] = br[b.k], x = x0 + (x1 - x0) * b.f + b.dx, y = y0 + (y1 - y0) * b.f + b.dy;
+      ctx.fillStyle = 'rgba(255,183,207,.9)'; ctx.beginPath(); ctx.arc(x, y, b.r, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,240,245,.9)'; ctx.beginPath(); ctx.arc(x - b.r * 0.2, y - b.r * 0.2, b.r * 0.45, 0, TAU); ctx.fill();
+    }
+    const pet = sd('petals', () => Array.from({ length: 50 }, () => ({ x: Math.random(), y: Math.random(), rot: Math.random() * TAU, vr: rnd(-2, 2), sp: rnd(0.03, 0.08), ph: Math.random() * TAU, s: rnd(5, 10) })));
+    for (const p of pet) {
+      p.y += p.sp * dt; p.x += 0.015 * dt; p.rot += p.vr * dt;
+      if (p.y > 1.05) { p.y = -0.05; p.x = Math.random() * 1.1 - 0.1; }
+      const x = p.x * W + Math.sin(t + p.ph) * 30, y = p.y * H;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(1, Math.abs(Math.cos(t * 2 + p.ph)) * 0.7 + 0.3);
+      ctx.fillStyle = p.ph > 3 ? '#ffb7cf' : '#ffcade';
+      ctx.beginPath(); ctx.moveTo(0, -p.s); ctx.quadraticCurveTo(p.s, -p.s * 0.2, 0, p.s); ctx.quadraticCurveTo(-p.s, -p.s * 0.2, 0, -p.s); ctx.fill();
+      ctx.restore();
+    }
+  } else if (id === 'space') {
+    const g = ctx.createRadialGradient(W * 0.6, H * 0.4, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.8);
+    g.addColorStop(0, '#2a1a6e'); g.addColorStop(0.6, '#110b3a'); g.addColorStop(1, '#05040f');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (const [hx, hy, c] of [[0.2, 0.3, '255,110,200'], [0.75, 0.65, '90,170,255'], [0.45, 0.85, '170,110,255']]) {
+      const x = hx * W + Math.sin(t * 0.05 + hx * 9) * 40, y = hy * H, r = m * 0.45;
+      const ng = ctx.createRadialGradient(x, y, 0, x, y, r);
+      ng.addColorStop(0, `rgba(${c},.22)`); ng.addColorStop(1, `rgba(${c},0)`);
+      ctx.fillStyle = ng; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    }
+    const st = sd('spaceStars', () => Array.from({ length: 200 }, () => ({ x: Math.random(), y: Math.random(), s: rnd(0.4, 1.8), ph: Math.random() * TAU, c: Math.random() < 0.15 ? '#ffd6f0' : Math.random() < 0.2 ? '#cfe4ff' : '#fff' })));
+    for (const s of st) {
+      ctx.globalAlpha = alpha * (0.3 + 0.7 * Math.abs(Math.sin(t * 1.2 + s.ph)));
+      ctx.fillStyle = s.c; ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.s, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = alpha;
+    // ringed planet
+    const px = W * 0.84, py = H * 0.28, pr = m * 0.075;
+    ctx.strokeStyle = 'rgba(255,220,180,.55)'; ctx.lineWidth = pr * 0.16;
+    ctx.beginPath(); ctx.ellipse(px, py, pr * 1.9, pr * 0.5, -0.35, Math.PI, TAU); ctx.stroke();
+    const pg = ctx.createRadialGradient(px - pr * 0.4, py - pr * 0.4, 0, px, py, pr);
+    pg.addColorStop(0, '#ffd6a8'); pg.addColorStop(0.6, '#ff8fa3'); pg.addColorStop(1, '#8a4fd6');
+    ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, pr, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(px, py, pr * 1.9, pr * 0.5, -0.35, 0, Math.PI); ctx.stroke();
+    // little moon
+    const ma = t * 0.25, mx = W * 0.14 + Math.cos(ma) * 12, my = H * 0.7 + Math.sin(ma) * 8;
+    const mg = ctx.createRadialGradient(mx - 6, my - 6, 0, mx, my, m * 0.035);
+    mg.addColorStop(0, '#ffffff'); mg.addColorStop(1, '#9aa3c8');
+    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, m * 0.035, 0, TAU); ctx.fill();
+    // shooting stars
+    const ss = sd('shooting', () => ({ t: 2, x: 0, y: 0 }));
+    ss.t += dt;
+    if (ss.t > 3.5) { ss.t = 0; ss.x = rnd(0.2, 1); ss.y = rnd(0, 0.4); }
+    if (ss.t < 0.8) {
+      const k = ss.t / 0.8, x = (ss.x - k * 0.35) * W, y = (ss.y + k * 0.2) * H;
+      const sg = ctx.createLinearGradient(x, y, x + 140, y - 80);
+      sg.addColorStop(0, `rgba(255,255,255,${1 - k})`); sg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = sg; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 140, y - 80); ctx.stroke();
+    }
+  } else if (id === 'aurora') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#04121f'); g.addColorStop(0.6, '#0b2a3a'); g.addColorStop(1, '#12403d');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (const s of stars) {
+      ctx.globalAlpha = alpha * (0.3 + 0.6 * Math.abs(Math.sin(t * 0.9 + s.ph)));
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x * W, s.y * H * 0.7, s.s * 0.8, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = alpha;
+    ctx.globalCompositeOperation = 'lighter';
+    const bands = [['80,255,170', 0.22, 0], ['70,200,255', 0.3, 2], ['200,110,255', 0.38, 4]];
+    for (const [c, by, ph] of bands) {
+      for (let x = 0; x < W; x += 6) {
+        const y = H * by + Math.sin(x * 0.004 + t * 0.35 + ph) * 45 + Math.sin(x * 0.011 - t * 0.5 + ph) * 18;
+        const h = 120 + Math.sin(x * 0.007 + t * 0.6 + ph) * 60;
+        const a = 0.2 + 0.1 * Math.sin(x * 0.02 + t * 1.3 + ph);
+        const ag = ctx.createLinearGradient(0, y - h, 0, y);
+        ag.addColorStop(0, `rgba(${c},0)`); ag.addColorStop(0.8, `rgba(${c},${a})`); ag.addColorStop(1, `rgba(${c},0)`);
+        ctx.fillStyle = ag; ctx.fillRect(x, y - h, 6, h);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    hills(H * 0.8, 40, 0.005, 0.5, '#0c2230');
+    hills(H * 0.88, 28, 0.008, 2.2, '#081822');
+  } else if (id === 'rainbow') {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    for (let i = 0; i <= 5; i++) g.addColorStop(i / 5, `hsl(${(t * 18 + i * 60) % 360},85%,86%)`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // a big soft rainbow arc
+    const cx = W / 2, cy = H * 1.05, R = Math.max(W, H) * 0.7;
+    ['#ff8fa3', '#ffbf7a', '#ffe680', '#9ff0a8', '#86d3ff', '#c3a2ff'].forEach((c, i) => {
+      ctx.strokeStyle = c; ctx.globalAlpha = alpha * 0.35; ctx.lineWidth = 26;
+      ctx.beginPath(); ctx.arc(cx, cy, R - i * 26, Math.PI, TAU); ctx.stroke();
+    });
+  }
+  ctx.restore();
+}
+function drawScene(t, dt) {
+  sceneMix = Math.min(1, sceneMix + dt * 1.4);
+  const cur = prog.scene, prev = sceneFrom;
+  if (prev !== 'pastel' && prev !== cur && sceneMix < 1) paintScene(prev, t, dt, cur === 'pastel' ? 1 - sceneMix : 1);
+  if (cur !== 'pastel') paintScene(cur, t, dt, sceneMix);
+  // night falls on the bright scenes too
+  const s = SCENES.find(x => x.id === cur);
+  if (cur !== 'pastel' && !s.dark && bg.night > 0.01) {
+    ctx.fillStyle = `rgba(14,12,40,${0.55 * bg.night * sceneMix})`; ctx.fillRect(0, 0, W, H);
+    for (const st of stars) {
+      ctx.globalAlpha = bg.night * sceneMix * (0.3 + 0.6 * Math.abs(Math.sin(t * 0.8 + st.ph)));
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(st.x * W, st.y * H * 0.6, st.s, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---------- cursor trails ----------
+const trailParts = [];
+let lastTrail = { x: -99, y: -99 };
+function heart(x, y, s) {
+  ctx.beginPath(); ctx.moveTo(x, y + s * 0.35);
+  ctx.bezierCurveTo(x - s, y - s * 0.3, x - s * 0.5, y - s, x, y - s * 0.45);
+  ctx.bezierCurveTo(x + s * 0.5, y - s, x + s, y - s * 0.3, x, y + s * 0.35);
+  ctx.fill();
+}
+cv.addEventListener('pointermove', e => {
+  if (prog.trail === 'none') return;
+  const x = e.clientX, y = e.clientY;
+  if ((x - lastTrail.x) ** 2 + (y - lastTrail.y) ** 2 < 49) return;
+  lastTrail = { x, y };
+  const k = prog.trail, now = performance.now() / 1000;
+  trailParts.push({ k, x: x + rnd(-4, 4), y: y + rnd(-4, 4), vx: rnd(-20, 20), vy: k === 'bubbles' || k === 'fire' ? rnd(-90, -40) : rnd(-20, 30),
+    life: 1, s: k === 'rainbow' ? 9 : rnd(4, 8), rot: Math.random() * TAU, h: (now * 300) % 360 });
+  if (trailParts.length > 160) trailParts.shift();
+});
+function drawTrail(dt) {
+  for (let i = trailParts.length - 1; i >= 0; i--) {
+    const p = trailParts[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.rot += dt * 3;
+    if ((p.life -= dt * (p.k === 'rainbow' ? 2.4 : 1.6)) <= 0) { trailParts.splice(i, 1); continue; }
+    ctx.globalAlpha = Math.min(1, p.life * 1.4);
+    if (p.k === 'sparkles') { ctx.fillStyle = p.h % 120 < 60 ? '#fff6b0' : '#ffffff'; star(p.x, p.y, p.s * p.life, p.rot); }
+    else if (p.k === 'hearts') { ctx.fillStyle = p.h % 120 < 60 ? '#ff7eb6' : '#ffb3d1'; heart(p.x, p.y, p.s * 1.4 * (0.5 + p.life * 0.5)); }
+    else if (p.k === 'bubbles') {
+      ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.s * (1.3 - p.life * 0.4), 0, TAU); ctx.stroke();
+      ctx.fillStyle = `hsla(${p.h},90%,80%,.35)`; ctx.fill();
+    } else if (p.k === 'rainbow') {
+      ctx.fillStyle = `hsl(${p.h},95%,65%)`; ctx.beginPath(); ctx.arc(p.x, p.y, p.s * p.life, 0, TAU); ctx.fill();
+    } else if (p.k === 'fire') {
+      ctx.fillStyle = `hsla(${8 + p.life * 38},100%,${50 + p.life * 12}%,${p.life * 0.85})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.s * (0.4 + p.life), 0, TAU); ctx.fill();
+      ctx.fillStyle = `hsla(50,100%,75%,${p.life * 0.7})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y + p.s * 0.2, p.s * 0.45 * p.life, 0, TAU); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- level-up banner ----------
+function drawBanner(dt) {
+  if (!banner || rush.phase !== 'off') return; // celebrate after the round, not over the board
+  const t = (banner.t += dt);
+  if (t > 2.6) { banner = null; return; }
+  const a = t < 0.2 ? t / 0.2 : t > 2.1 ? (2.6 - t) / 0.5 : 1;
+  const s = 1 - 0.6 * Math.exp(-6 * t) * Math.cos(13 * t), L = Math.max(W, H) * 0.7;
+  ctx.save(); ctx.translate(W / 2, H * 0.42); ctx.globalAlpha = a * 0.8;
+  ctx.save(); ctx.rotate(t * 0.5);
+  for (let i = 0; i < 12; i++) {
+    ctx.rotate(TAU / 12);
+    const g = ctx.createLinearGradient(0, 0, 0, -L);
+    g.addColorStop(0, 'rgba(255,236,170,.55)'); g.addColorStop(1, 'rgba(255,236,170,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-L * 0.09, -L); ctx.lineTo(L * 0.09, -L); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = a; ctx.scale(s, s);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '800 26px Ubuntu, Nunito, system-ui, sans-serif';
+  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(90,50,140,.5)'; ctx.strokeText('LEVEL UP!', 0, -62);
+  ctx.fillStyle = '#fff'; ctx.fillText('LEVEL UP!', 0, -62);
+  ctx.font = '900 110px Ubuntu, Nunito, system-ui, sans-serif';
+  const g = ctx.createLinearGradient(0, -50, 0, 50);
+  g.addColorStop(0, '#fff6b0'); g.addColorStop(0.5, '#ffb84d'); g.addColorStop(1, '#ff6fa8');
+  ctx.lineWidth = 10; ctx.strokeStyle = '#fff'; ctx.strokeText(String(banner.l), 0, 10);
+  ctx.fillStyle = g; ctx.fillText(String(banner.l), 0, 10);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+}
+
+// ---------- ⚡ Pop Rush: a 30-second arcade round on the Pop It ----------
+const rush = { phase: 'off', t: 0, time: 0, score: 0, specials: new Map(), nextSpecial: 0, popped: 0, lastBeep: 0, lastTick: 0, mult: 1, goT: 9 };
+const rushCard = document.getElementById('rushCard');
+function startRush() {
+  initAudio();
+  if (toy !== popit) selectToy(popit, true);
+  rushCard.hidden = true;
+  popit.flip = -1; popit.flipQueued = false;
+  for (const b of popit.bubbles) { b.popped = false; b.a = 0; }
+  combo.n = 0; combo.t = 0;
+  document.body.classList.add('rushing');
+  Object.assign(rush, { phase: 'count', t: 3, time: 30, score: 0, specials: new Map(), nextSpecial: 0.6, popped: 0, lastBeep: 4, lastTick: 99, mult: 1, goT: 9 });
+  hideHint();
+}
+function rushPop(b, wx, wy) {
+  if (rush.phase !== 'play') return;
+  rush.mult = 1 + Math.min(4, Math.floor(combo.n / 10));
+  const sp = rush.specials.get(b);
+  let pts = rush.mult;
+  if (sp && sp.kind === 'gold') {
+    pts = 5 * rush.mult; sfx.gold(); shake(2);
+    sparkle(wx, wy, 16, ['#ffe66b', '#ffffff', '#ffb800'], 1.4);
+    floatText(wx, wy - 22, `+${pts}`, 30, '#ffe66b');
+  } else if (sp && sp.kind === 'time') {
+    rush.time += 3; sfx.timeBonus();
+    sparkle(wx, wy, 12, ['#8fe3ff', '#ffffff'], 1.2);
+    floatText(wx, wy - 22, '+3s', 28, '#8fe3ff');
+  } else floatText(wx, wy - 14, `+${pts}`, 16, '#ffffff');
+  rush.specials.delete(b);
+  rush.score += pts; rush.popped++;
+  if (popit.bubbles.every(q => q.popped)) {
+    const bonus = 10 * rush.mult;
+    rush.score += bonus;
+    floatText(popit.cx(), popit.cy(), `BOARD CLEAR +${bonus}`, 30, '#ffffff');
+  }
+}
+function updateRush(dt) {
+  if (rush.phase === 'off') return;
+  rush.goT += dt;
+  if (toy !== popit) { endRush(true); return; }
+  if (rush.phase === 'count') {
+    rush.t -= dt;
+    const n = Math.ceil(rush.t);
+    if (n !== rush.lastBeep && n >= 1) { rush.lastBeep = n; sfx.beep(false); }
+    if (rush.t <= 0) { rush.phase = 'play'; rush.goT = 0; sfx.beep(true); shake(4); }
+    return;
+  }
+  rush.time -= dt;
+  for (const [b, s] of rush.specials) if ((s.life -= dt) <= 0 || b.popped || !popit.bubbles.includes(b)) rush.specials.delete(b);
+  if ((rush.nextSpecial -= dt) <= 0) {
+    rush.nextSpecial = rnd(0.45, 1.0);
+    const free = popit.bubbles.filter(b => !b.popped && !rush.specials.has(b));
+    if (free.length && popit.flip < 0) {
+      rush.specials.set(free[Math.floor(Math.random() * free.length)], { kind: Math.random() < 0.13 ? 'time' : 'gold', life: 1.9, max: 1.9 });
+      sfx.sparkleIn();
+    }
+  }
+  const s = Math.ceil(rush.time);
+  if (s <= 5 && s !== rush.lastTick && s > 0) { rush.lastTick = s; sfx.tick(); }
+  if (rush.time <= 0) endRush(false);
+}
+function endRush(cancel) {
+  rush.phase = 'off'; rush.specials.clear();
+  document.body.classList.remove('rushing');
+  if (cancel) return;
+  const score = rush.score, best = score > prog.rushBest;
+  if (best) prog.rushBest = score;
+  const xp = Math.min(150, Math.round(score / 4) + 10);
+  sfx.rushEnd(); confetti(W / 2, H * 0.6, 90); shake(5);
+  document.getElementById('rushBest').textContent = best && score > 0 ? '🏆 NEW BEST!' : `Best: ${prog.rushBest}`;
+  document.getElementById('rushMeta').textContent = `${rush.popped} bubbles popped · +${xp} XP`;
+  const scoreEl = document.getElementById('rushScore');
+  rushCard.hidden = false;
+  const t0 = performance.now();
+  const count = () => { const k = Math.min(1, (performance.now() - t0) / 900); scoreEl.textContent = Math.round(score * (1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(count); };
+  count();
+  gainXP(xp); questEvent('rush', score);
+  if (score >= 100) unlock('rush100');
+  if (score >= 300) unlock('rush300');
+  progDirty = true;
+}
+// every Pop It pop (yours or a stickman's) feeds the rush
+const basePopAt = popit.popAt;
+popit.popAt = function (x, y) {
+  const b = this.hit(x, y), fresh = b && !b.popped;
+  basePopAt.call(this, x, y);
+  if (fresh && b.popped) rushPop(b, this.cx() + b.x, this.cy() + b.y);
+};
+const basePopitDraw = popit.draw;
+popit.draw = function (t) {
+  basePopitDraw.call(this, t);
+  if (rush.phase !== 'play' || this.flip >= 0) return;
+  for (const [b, s] of rush.specials) {
+    const x = this.cx() + b.x, y = this.cy() + b.y, r = this.br, pulse = 1 + Math.sin(t * 14) * 0.08;
+    const gold = s.kind === 'gold';
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.8 * pulse);
+    g.addColorStop(0, gold ? 'rgba(255,230,100,.85)' : 'rgba(140,225,255,.85)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.8 * pulse, 0, TAU); ctx.fill();
+    ctx.strokeStyle = gold ? '#fff3a0' : '#d8f6ff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.18, -Math.PI / 2, -Math.PI / 2 + TAU * (s.life / s.max)); ctx.stroke();
+    ctx.font = `${Math.round(r * 0.9)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(gold ? '⭐' : '⏱️', x, y + 1);
+    ctx.textBaseline = 'alphabetic';
+  }
+};
+function drawRushHud() {
+  if (rush.phase === 'off') return;
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (rush.phase === 'count') {
+    const n = Math.ceil(rush.t), f = rush.t - Math.floor(rush.t);
+    ctx.globalAlpha = Math.min(1, f * 2.5);
+    ctx.translate(W / 2, H / 2 + 20); ctx.scale(0.7 + f * 0.8, 0.7 + f * 0.8);
+    ctx.font = '900 150px Ubuntu, Nunito, system-ui, sans-serif';
+    ctx.lineWidth = 12; ctx.strokeStyle = 'rgba(90,50,140,.6)'; ctx.strokeText(n, 0, 0);
+    ctx.fillStyle = '#fff'; ctx.fillText(n, 0, 0);
+  } else {
+    if (rush.goT < 0.7) {
+      const k = rush.goT / 0.7;
+      ctx.save(); ctx.globalAlpha = 1 - k; ctx.translate(W / 2, H / 2 + 20); ctx.scale(1 + k, 1 + k);
+      ctx.font = '900 120px Ubuntu, Nunito, system-ui, sans-serif';
+      ctx.lineWidth = 12; ctx.strokeStyle = 'rgba(90,50,140,.6)'; ctx.strokeText('GO!', 0, 0);
+      ctx.fillStyle = '#ffe66b'; ctx.fillText('GO!', 0, 0);
+      ctx.restore();
+    }
+    const y = Math.min(150, H * 0.18), low = rush.time <= 5, w = Math.min(280, W - 60);
+    ctx.font = '900 34px Ubuntu, Nunito, system-ui, sans-serif';
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(255,255,255,.95)';
+    const label = `⚡ ${rush.score}`;
+    ctx.strokeText(label, W / 2, y - 6); ctx.fillStyle = '#6b3fb0'; ctx.fillText(label, W / 2, y - 6);
+    if (rush.mult > 1) {
+      ctx.font = '800 18px Ubuntu, Nunito, system-ui, sans-serif';
+      const mx = W / 2 + ctx.measureText(label).width * 0.9 + 46;
+      ctx.fillStyle = `hsl(${(performance.now() / 4) % 360},90%,60%)`;
+      ctx.beginPath(); ctx.roundRect(mx - 24, y - 20, 48, 26, 13); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.fillText(`×${rush.mult}`, mx, y - 6);
+    }
+    const k = clamp(rush.time / 30, 0, 1);
+    ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.roundRect(W / 2 - w / 2, y + 20, w, 10, 5); ctx.fill();
+    ctx.fillStyle = low ? `rgba(255,80,110,${0.75 + 0.25 * Math.sin(performance.now() / 60)})` : '#7fd3ff';
+    ctx.beginPath(); ctx.roundRect(W / 2 - w / 2, y + 20, Math.max(10, w * k), 10, 5); ctx.fill();
+    ctx.font = '700 13px Ubuntu, Nunito, system-ui, sans-serif'; ctx.fillStyle = low ? '#ff5078' : 'rgba(80,50,120,.75)';
+    ctx.fillText(`${Math.max(0, rush.time).toFixed(1)}s`, W / 2, y + 44);
+  }
+  ctx.restore();
+}
+
+// ---------- zen mode & photos ----------
+let zen = false, zenAcc = 0;
+function setZen(on) {
+  zen = on;
+  document.body.classList.toggle('zen', on);
+  if (on) { unlock('zen'); hideHint(); panel.hidden = true; }
+}
+const flashEl = document.getElementById('flash');
+function takePhoto() {
+  initAudio(); sfx.shutter();
+  const out = document.createElement('canvas');
+  out.width = cv.width; out.height = cv.height;
+  const o = out.getContext('2d');
+  o.drawImage(cv, 0, 0);
+  o.scale(DPR, DPR);
+  o.font = '700 16px Ubuntu, Nunito, system-ui, sans-serif'; o.textAlign = 'right';
+  o.lineWidth = 4; o.strokeStyle = 'rgba(80,50,120,.45)'; o.strokeText('NeeDoh Squish 🫧', W - 16, H - 16);
+  o.fillStyle = 'rgba(255,255,255,.9)'; o.fillText('NeeDoh Squish 🫧', W - 16, H - 16);
+  out.toBlob(blob => {
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `squish-${toy.name.toLowerCase().replace(/\W+/g, '-')}-${Date.now()}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+  flashEl.classList.remove('go'); void flashEl.offsetWidth; flashEl.classList.add('go');
+  unlock('photo');
+}
+
+// ---------- the ⭐ progress panel ----------
+const progPanel = document.getElementById('progPanel');
+function renderProg() {
+  refreshQuests();
+  document.getElementById('pLvl').textContent = `Level ${prog.level}`;
+  document.getElementById('pXp').textContent = `${prog.xp} / ${xpNeed(prog.level)} XP`;
+  document.getElementById('pBar').style.width = `${prog.xp / xpNeed(prog.level) * 100}%`;
+  const ql = document.getElementById('questList'); ql.innerHTML = '';
+  for (const id of qs.ids) {
+    const q = QUESTS.find(x => x.id === id), p = Math.min(q.goal, Math.floor(qs.prog[id] || 0)), done = qs.done.includes(id);
+    const row = document.createElement('div'); row.className = 'quest' + (done ? ' done' : '');
+    row.innerHTML = '<span class="qi"></span><span class="qt"><b></b><span class="qbar"><i></i></span></span><span class="qx"></span>';
+    row.querySelector('.qi').textContent = done ? '✅' : '🎯';
+    row.querySelector('b').textContent = q.text;
+    row.querySelector('i').style.width = `${p / q.goal * 100}%`;
+    row.querySelector('.qx').textContent = done ? 'done' : `${q.ev === 'zen' ? Math.floor(p / 60) + ':' + String(p % 60).padStart(2, '0') : p}/${q.ev === 'zen' ? '2:00' : q.goal} · +${q.xp}`;
+    ql.appendChild(row);
+  }
+  const mid = new Date(); mid.setHours(24, 0, 0, 0);
+  const mins = Math.round((mid - new Date()) / 60000);
+  document.getElementById('qReset').textContent = `new quests in ${Math.floor(mins / 60)}h ${mins % 60}m`;
+  const sg = document.getElementById('sceneGrid'); sg.innerHTML = '';
+  for (const s of SCENES) {
+    const locked = prog.level < s.lvl, b = document.createElement('button');
+    b.className = 'card' + (prog.scene === s.id ? ' on' : '') + (locked ? ' locked' : '');
+    b.innerHTML = '<span class="sw"></span><span class="nm"></span>';
+    b.querySelector('.sw').style.background = s.swatch;
+    b.querySelector('.nm').textContent = locked ? `🔒 Level ${s.lvl}` : s.name;
+    b.disabled = locked;
+    b.onclick = () => { setScene(s.id); renderProg(); };
+    sg.appendChild(b);
+  }
+  const tg = document.getElementById('trailGrid'); tg.innerHTML = '';
+  for (const tr of TRAILS) {
+    const locked = prog.level < tr.lvl, b = document.createElement('button');
+    b.className = 'card trail' + (prog.trail === tr.id ? ' on' : '') + (locked ? ' locked' : '');
+    b.innerHTML = '<span class="ic"></span><span class="nm"></span>';
+    b.querySelector('.ic').textContent = locked ? '🔒' : tr.icon;
+    b.querySelector('.nm').textContent = locked ? `Level ${tr.lvl}` : tr.name;
+    b.disabled = locked;
+    b.onclick = () => { prog.trail = tr.id; progDirty = true; initAudio(); sfx.tap(); renderProg(); };
+    tg.appendChild(b);
+  }
+  document.getElementById('records').textContent =
+    `⚡ Pop Rush best: ${prog.rushBest} · 🔥 best combo ×${stats.best} · 🫧 ${squishes.toLocaleString()} squishes · 🏆 ${unlocked.size}/${ACH.length}`;
+}
+lvlBtn.onclick = () => { renderProg(); progPanel.hidden = false; };
+document.getElementById('progClose').onclick = () => { progPanel.hidden = true; };
+progPanel.onclick = e => { if (e.target === progPanel) progPanel.hidden = true; };
+document.getElementById('rushBtn').onclick = startRush;
+document.getElementById('rushAgain').onclick = startRush;
+document.getElementById('rushClose').onclick = () => { rushCard.hidden = true; };
+document.getElementById('zenBtn').onclick = () => { initAudio(); setZen(true); };
+document.getElementById('zenExit').onclick = () => setZen(false);
+document.getElementById('photoBtn').onclick = takePhoto;
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'KeyZ') setZen(!zen);
+  if (e.code === 'KeyP') takePhoto();
+  if (e.code === 'KeyG') startRush();
+  if (e.code === 'Escape') { setZen(false); progPanel.hidden = true; rushCard.hidden = true; }
+});
+updateLvl(); updateTrophy();
+
 // ---------- loop ----------
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -3078,6 +3836,8 @@ function frame(now) {
   const t = now / 1000;
   toy.update(dt, t, now);
   updateFx(dt);
+  updateRush(dt);
+  if (zen && (zenAcc += dt) >= 1) { zenAcc -= 1; questEvent('zen'); }
   rainDrops(dt);
   introT += dt;
 
@@ -3103,6 +3863,9 @@ function frame(now) {
     ctx.globalAlpha = 1;
   }
   drawFx();
+  drawTrail(dt);
+  drawRushHud();
+  drawBanner(dt);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
